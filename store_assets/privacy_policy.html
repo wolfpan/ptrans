@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Web Translator (OpenAI Compatible) 隐私政策 / Privacy Policy</title>
+<style>
+  body { max-width: 760px; margin: 40px auto; padding: 0 20px; font: 15px/1.8 system-ui, "Microsoft YaHei", sans-serif; color: #222; }
+  h1 { font-size: 24px; } h2 { font-size: 18px; margin-top: 28px; }
+  .en { color: #555; }
+</style>
+</head>
+<body>
+<h1>隐私政策 / Privacy Policy</h1>
+<p>适用扩展：AI Web Translator (OpenAI Compatible)（Chrome Web Store 发布）<br>
+<span class="en">Applies to: AI Web Translator (OpenAI Compatible), published on the Chrome Web Store.</span><br>
+生效日期 / Effective date: 2026-11-12</p>
+
+<h2>1. 我们收集什么 / What we collect</h2>
+<p><b>我们不运营任何服务器，不收集、不存储任何用户数据。</b>本扩展没有账号体系、没有统计埋点、没有广告。<br>
+<span class="en"><b>We operate no servers and collect or store no user data.</b> The extension has no accounts, no analytics and no advertising.</span></p>
+
+<h2>2. 数据如何流动 / How data flows</h2>
+<ul>
+  <li><b>本地设置：</b>您填写的 API 地址、API Key、模型名称、目标语言、翻译风格等仅保存在您浏览器本地的
+      <code>chrome.storage.local</code> 中，不会发送给我们。<br>
+      <span class="en">Your settings (API base URL, API key, model, target language, style) are stored only in your browser's local <code>chrome.storage.local</code> and never sent to us.</span></li>
+  <li><b>翻译请求：</b>仅当您点击"翻译当前网页"时，扩展才读取当前页面的可见文本，并通过 HTTPS 直接发送到<b>您自己配置</b>的
+      OpenAI 兼容 API 地址（API Key 仅作为该请求的鉴权头）。页面文本不经过我们，我们也无法看到。<br>
+      <span class="en">Only when you click "Translate this page" does the extension read the page's visible text and send it over HTTPS directly to <b>your own configured</b> OpenAI-compatible API endpoint (your API key travels only as the authorization header of that request). Page text never passes through us.</span></li>
+  <li><b>后台行为：</b>未发起翻译时，扩展不读取、不上传任何页面内容，不跟踪浏览行为。<br>
+      <span class="en">When you do not trigger a translation, the extension reads nothing, uploads nothing and does not track browsing.</span></li>
+</ul>
+
+<h2>3. 数据保留与删除 / Retention &amp; deletion</h2>
+<p>本地设置保留至您主动清空或卸载扩展；卸载即全部删除。已发送至您所配置 API 的文本，其保留期限由该 API 服务商的隐私政策约束，请自行查阅。<br>
+<span class="en">Local settings remain until you clear them or uninstall the extension; uninstalling deletes everything. Text sent to your configured API is governed by that provider's privacy policy.</span></p>
+
+<h2>4. 权限说明 / Permissions</h2>
+<ul>
+  <li><code>&lt;all_urls&gt;</code>：向您自定义的任意 API 域名发起翻译请求；在您发起翻译时读写当前页面文本。</li>
+  <li><code>storage</code>：本地保存您的翻译设置。</li>
+</ul>
+<p class="en">&lt;all_urls&gt;: call your custom API endpoint on any domain and read/replace page text when you trigger translation. storage: persist your settings locally.</p>
+
+<h2>5. 联系我们 / Contact</h2>
+<p>monza330t@gmail.com</p>
+</body>
+</html>

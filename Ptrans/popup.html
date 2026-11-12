@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { width: 300px; font-family: system-ui, sans-serif; padding: 12px; font-size: 13px; color: #333; }
+    .field { margin-bottom: 10px; display: flex; flex-direction: column; }
+    label { font-weight: 600; margin-bottom: 4px; }
+    input, select { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+    .checkbox-row { flex-direction: row; align-items: center; gap: 6px; }
+    .btn-group { display: flex; gap: 8px; margin-top: 14px; }
+    button { flex: 1; padding: 8px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    #translateBtn { background: #2563eb; color: white; }
+    #restoreBtn { background: #e5e7eb; color: #374151; }
+  </style>
+</head>
+<body>
+  <div class="field">
+    <label>API Base URL (OpenAI 兼容)</label>
+    <input type="text" id="baseUrl" placeholder="https://api.openai.com/v1" />
+  </div>
+  <div class="field">
+    <label>API Key</label>
+    <input type="password" id="apiKey" placeholder="sk-..." />
+  </div>
+  <div class="field">
+    <label>模型名称 (Model)</label>
+    <input type="text" id="model" placeholder="gpt-4o-mini / qwen-plus / deepseek-chat" />
+  </div>
+  <div class="field">
+    <label>目标语言</label>
+    <select id="targetLang">
+      <option value="简体中文">简体中文</option>
+      <option value="English">English</option>
+      <option value="日本語">日本語</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>翻译强度与风格</label>
+    <select id="styleMode">
+      <option value="strict">严谨准确（直译优先 / 零信息损耗）</option>
+      <option value="balanced" selected>均衡标准（准确且符合母语习惯）</option>
+      <option value="elegant">优雅自然（意译重构 / 消除翻译腔）</option>
+    </select>
+  </div>
+  <div class="field checkbox-row">
+    <input type="checkbox" id="explainTerms" />
+    <label for="explainTerms" style="margin:0;">专业术语附加括号解释</label>
+  </div>
+  <div class="btn-group">
+    <button id="translateBtn">翻译当前网页</button>
+    <button id="restoreBtn">还原原文</button>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
