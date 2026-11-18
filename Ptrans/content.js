@@ -40,6 +40,11 @@ function autoConfigReady() {
   return !!settings.apiKey || /localhost|127\.0\.0\.1/.test(settings.baseUrl);
 }
 
+// 界面文案跟随目标语言（词典见 i18n.js，先于本脚本注入）
+function tt(key, params) {
+  return t(settings.targetLang || '简体中文', key, params);
+}
+
 // 页面右上角提示条：让失败/完成对用户可见，而不是静默无响应
 // 白色圆角卡片 + 彩色状态点，与弹窗设计语言一致
 let toastEl = null;
@@ -143,7 +148,7 @@ async function translateNodes(allNodes, config) {
             }
           });
         } else {
-          firstError = firstError || (response && response.error) || '后台返回异常';
+          firstError = firstError || (response && response.error) || tt('errBackend');
           console.error('[ptrans] batch failed:', response && response.error);
         }
       } catch (err) {
@@ -164,12 +169,12 @@ async function translateNodes(allNodes, config) {
 
 async function translatePage(config) {
   if (pageTranslating) {
-    showToast('整页翻译正在进行中，请稍候。');
+    showToast(tt('toastBusy'));
     return;
   }
   const allNodes = getTranslatableTextNodes();
   if (allNodes.length === 0) {
-    showToast('未找到可翻译的文本节点。', true);
+    showToast(tt('toastNoNodes'), true);
     return;
   }
 
@@ -177,9 +182,9 @@ async function translatePage(config) {
   try {
     const { batches, doneCount, firstError } = await translateNodes(allNodes, config);
     if (firstError) {
-      showToast(`翻译失败：${firstError}\n（已完成 ${doneCount}/${batches.length} 批）`, true);
+      showToast(tt('toastFailed', { error: firstError, done: doneCount, total: batches.length }), true);
     } else {
-      showToast(`翻译完成：${translatedNodes.size} 段文本`, false);
+      showToast(tt('toastDone', { count: translatedNodes.size }), false);
     }
   } finally {
     pageTranslating = false;
@@ -194,7 +199,7 @@ function restorePage() {
     }
   });
   translatedNodes.clear();
-  showToast('已还原原文', false);
+  showToast(tt('toastRestored'), false);
 }
 
 // ===== 自动翻译（始终翻译本站 / 英文页面） =====
@@ -313,7 +318,7 @@ async function translateHoverBlock(block) {
     .filter(node => !translatedNodes.has(node) && !inFlightNodes.has(node));
   if (nodes.length === 0) return;
   if (!configReady()) {
-    showToast('请先在扩展弹窗的「API 设置」中填写服务地址与模型名称。', true);
+    showToast(tt('toastNeedConfig'), true);
     return;
   }
 
@@ -321,7 +326,7 @@ async function translateHoverBlock(block) {
   block.setAttribute('data-ptrans-hover', '');
   try {
     const { firstError } = await translateNodes(nodes, getConfig());
-    if (firstError) showToast(`悬停翻译失败：${firstError}`, true);
+    if (firstError) showToast(tt('toastHoverFailed', { error: firstError }), true);
   } finally {
     hoverBusy.delete(block);
     block.removeAttribute('data-ptrans-hover');

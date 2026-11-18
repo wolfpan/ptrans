@@ -25,13 +25,22 @@
     .icon-btn:hover { background: var(--fill); color: var(--text); }
 
     /* 胶囊行：灰底圆角，左标签右值，尾部 chevron */
-    .pill { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; height: 38px; padding: 0 30px 0 14px; margin-bottom: 8px; background: var(--fill); border-radius: 999px; }
-    .pill::after { content: ""; position: absolute; right: 14px; top: 50%; width: 7px; height: 7px; border-right: 1.5px solid var(--sub); border-bottom: 1.5px solid var(--sub); transform: translateY(-70%) rotate(45deg); pointer-events: none; }
+    .pill { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; height: 38px; padding: 0; padding-inline: 14px 30px; margin-bottom: 8px; background: var(--fill); border-radius: 999px; }
+    .pill::after { content: ""; position: absolute; inset-inline-end: 14px; top: 50%; width: 7px; height: 7px; border-right: 1.5px solid var(--sub); border-bottom: 1.5px solid var(--sub); transform: translateY(-70%) rotate(45deg); pointer-events: none; }
     .pill:focus-within { box-shadow: 0 0 0 2px rgba(37, 99, 235, .3); }
     .pill-label { flex: none; color: var(--faint); font-size: 12px; }
-    .pill select { appearance: none; -webkit-appearance: none; flex: 1; min-width: 0; height: 100%; margin: 0; padding: 0; border: none; background: transparent; font: inherit; font-weight: 600; color: var(--text); cursor: pointer; outline: none; }
-    .pill-btn { border: none; font: inherit; text-align: left; cursor: pointer; }
-    .pill-value { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pill-value { flex: 1; min-width: 0; height: 100%; margin: 0; padding: 0; border: none; background: transparent; font: inherit; font-weight: 600; color: var(--text); cursor: pointer; outline: none; text-align: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pill.open::after { transform: translateY(-30%) rotate(225deg); }
+
+    /* 自定义下拉面板：与弹窗卡片同一设计语言（白底圆角、细边框、软阴影） */
+    .drop { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 50; max-height: 264px; overflow-y: auto; padding: 4px; background: #fff; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 24px rgba(17, 24, 39, .12); }
+    .drop[hidden] { display: none; }
+    .drop-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border: none; border-radius: 8px; background: transparent; font: inherit; color: var(--text); text-align: start; cursor: pointer; }
+    .drop-item:hover { background: var(--fill); }
+    .drop-item.selected { color: var(--blue); font-weight: 600; }
+    .drop-item .check { flex: none; width: 14px; height: 14px; visibility: hidden; }
+    .drop-item.selected .check { visibility: visible; }
+    .drop-item-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
     .dot.ready { background: var(--green); }
 
@@ -45,18 +54,18 @@
     .toggle-row label { font-weight: 500; color: #374151; cursor: pointer; }
     .host { color: var(--faint); font-weight: 400; font-size: 12px; }
     .switch { appearance: none; -webkit-appearance: none; flex: none; width: 40px; height: 22px; margin: 0; border-radius: 999px; background: var(--border); position: relative; cursor: pointer; transition: background .2s; outline: none; }
-    .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); transition: left .2s; }
+    .switch::after { content: ""; position: absolute; top: 2px; inset-inline-start: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); transition: inset-inline-start .2s; }
     .switch:checked { background: var(--blue); }
-    .switch:checked::after { left: 20px; }
+    .switch:checked::after { inset-inline-start: 20px; }
     .switch:disabled { opacity: .5; cursor: not-allowed; }
     .switch:focus-visible { box-shadow: 0 0 0 2px rgba(37, 99, 235, .3); }
 
     /* 底部功能卡片 */
     .card-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-    .card { display: flex; flex-direction: column; gap: 3px; border: none; background: var(--card); border-radius: 12px; padding: 10px 12px; text-align: left; font-family: inherit; cursor: pointer; }
+    .card { display: flex; flex-direction: column; gap: 3px; border: none; background: var(--card); border-radius: 12px; padding: 10px 12px; text-align: start; font-family: inherit; cursor: pointer; }
     .card:hover { background: #eef1f4; }
-    .card-title { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; color: var(--text); }
-    .card-title svg { color: var(--faint); transition: transform .2s; }
+    .card-title { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text); }
+    .card-title svg { flex: none; color: var(--faint); transition: transform .2s; }
     .card.open .chev { transform: rotate(90deg); }
     .card-sub { font-size: 11px; color: var(--faint); }
 
@@ -70,84 +79,90 @@
     .field input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: #f9fafb; font-family: inherit; font-size: 12px; color: var(--text); outline: none; }
     .field input:focus { border-color: var(--blue); background: #fff; box-shadow: 0 0 0 2px rgba(37, 99, 235, .15); }
     .field-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .mini-btn { display: inline-flex; align-items: center; gap: 4px; border: none; background: transparent; padding: 2px 4px; border-radius: 6px; font-family: inherit; font-size: 11px; color: var(--sub); cursor: pointer; }
+    .mini-btn { display: inline-flex; align-items: center; gap: 4px; flex: none; white-space: nowrap; border: none; background: transparent; padding: 2px 4px; border-radius: 6px; font-family: inherit; font-size: 11px; color: var(--sub); cursor: pointer; }
     .mini-btn:hover { background: var(--fill); color: var(--text); }
     .mini-btn:disabled { opacity: .6; cursor: default; }
     .mini-btn.spinning svg { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .field-hint { font-size: 11px; color: var(--faint); line-height: 1.5; word-break: break-all; }
     .field-hint.error { color: #dc2626; }
+
+    /* 模型勾选列表 */
+    .model-list { max-height: 180px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: #f9fafb; padding: 4px; }
+    .model-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; }
+    .model-item:hover { background: var(--fill); }
+    .model-item input { flex: none; width: 14px; height: 14px; margin: 0; accent-color: var(--blue); cursor: pointer; }
+    .model-name { flex: 1; min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .model-add { display: flex; gap: 6px; align-items: center; }
+    .model-add input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: #f9fafb; font-family: inherit; font-size: 12px; color: var(--text); outline: none; }
+    .model-add input:focus { border-color: var(--blue); background: #fff; box-shadow: 0 0 0 2px rgba(37, 99, 235, .15); }
+    .model-add .mini-btn { flex: none; border: 1px solid var(--border); background: #fff; padding: 6px 10px; border-radius: 8px; }
   </style>
 </head>
 <body>
   <header class="topbar">
     <img class="logo" src="icons/icon32.png" alt="">
     <span class="title">AI Web Translator</span>
-    <button type="button" class="icon-btn" id="settingsBtn" title="API 设置" aria-label="API 设置">
+    <button type="button" class="icon-btn" id="settingsBtn" title="API 设置" aria-label="API 设置" data-i18n-title="settings" data-i18n-aria="settings">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>
   </header>
 
   <div class="pill">
-    <span class="pill-label">目标语言</span>
-    <select id="targetLang">
-      <option value="简体中文">简体中文</option>
-      <option value="English">English</option>
-      <option value="日本語">日本語</option>
-    </select>
+    <span class="pill-label" data-i18n="targetLang">目标语言</span>
+    <button type="button" class="pill-value" id="targetLang" aria-haspopup="listbox">简体中文</button>
+    <div class="drop" id="targetLangDrop" role="listbox" hidden></div>
   </div>
   <div class="pill">
-    <span class="pill-label">翻译风格</span>
-    <select id="styleMode">
-      <option value="strict" title="直译优先 / 零信息损耗">严谨准确</option>
-      <option value="balanced" selected title="准确且符合母语习惯">均衡标准</option>
-      <option value="elegant" title="意译重构 / 消除翻译腔">优雅自然</option>
-    </select>
+    <span class="pill-label" data-i18n="style">翻译风格</span>
+    <button type="button" class="pill-value" id="styleMode" aria-haspopup="listbox">均衡标准</button>
+    <div class="drop" id="styleModeDrop" role="listbox" hidden></div>
   </div>
-  <button type="button" class="pill pill-btn" id="modelRow" title="点击配置 API 与模型">
+  <div class="pill" id="modelRow">
     <span class="dot" id="modelDot"></span>
-    <span class="pill-label">翻译模型</span>
-    <span class="pill-value" id="modelValue">gpt-4o-mini</span>
-  </button>
+    <span class="pill-label" data-i18n="model">翻译模型</span>
+    <button type="button" class="pill-value" id="model" aria-haspopup="listbox" data-placeholder="未勾选模型" data-i18n-placeholder="modelPlaceholder" title="在「API 设置」中获取并勾选可用模型" data-i18n-title="modelTitle">gpt-4o-mini</button>
+    <div class="drop" id="modelDrop" role="listbox" hidden></div>
+  </div>
 
-  <button type="button" class="primary" id="translateBtn">翻译当前网页</button>
+  <button type="button" class="primary" id="translateBtn" data-i18n="translate">翻译当前网页</button>
 
   <div class="toggle-row">
-    <label for="alwaysSite">始终翻译此网站 <span class="host" id="siteHost"></span></label>
+    <label for="alwaysSite"><span data-i18n="alwaysSite">始终翻译此网站</span> <span class="host" id="siteHost"></span></label>
     <input type="checkbox" id="alwaysSite" class="switch">
   </div>
   <div class="toggle-row">
-    <label for="hoverCtrl">悬停段落，按住 Ctrl 翻译</label>
+    <label for="hoverCtrl" data-i18n="hoverCtrl">悬停段落，按住 Ctrl 翻译</label>
     <input type="checkbox" id="hoverCtrl" class="switch">
   </div>
   <div class="toggle-row">
-    <label for="autoEnglish">自动翻译英文页面</label>
+    <label for="autoEnglish" data-i18n="autoEnglish">自动翻译英文页面</label>
     <input type="checkbox" id="autoEnglish" class="switch">
   </div>
   <div class="toggle-row">
-    <label for="explainTerms">专业术语附加括号解释</label>
+    <label for="explainTerms" data-i18n="explainTerms">专业术语附加括号解释</label>
     <input type="checkbox" id="explainTerms" class="switch">
   </div>
 
   <div class="card-row">
     <button type="button" class="card" id="apiCard">
-      <span class="card-title">API 设置
+      <span class="card-title"><span data-i18n="settings">API 设置</span>
         <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
       </span>
-      <span class="card-sub">地址 · 密钥 · 模型</span>
+      <span class="card-sub" data-i18n="apiSub">地址 · 密钥 · 模型</span>
     </button>
     <button type="button" class="card" id="restoreBtn">
-      <span class="card-title">还原原文
+      <span class="card-title"><span data-i18n="restore">还原原文</span>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
       </span>
-      <span class="card-sub">恢复页面原文</span>
+      <span class="card-sub" data-i18n="restoreSub">恢复页面原文</span>
     </button>
   </div>
 
   <details id="apiDrawer">
-    <summary class="sr-only">API 设置（地址 / 密钥 / 模型）</summary>
+    <summary class="sr-only" data-i18n="drawerSummary">API 设置（地址 / 密钥 / 模型）</summary>
     <div class="field">
-      <label for="baseUrl">API Base URL (OpenAI 兼容)</label>
+      <label for="baseUrl" data-i18n="baseUrlLabel">API Base URL (OpenAI 兼容)</label>
       <input type="text" id="baseUrl" placeholder="https://api.openai.com/v1">
     </div>
     <div class="field">
@@ -156,17 +171,21 @@
     </div>
     <div class="field">
       <div class="field-head">
-        <label for="model">模型名称 (Model)</label>
-        <button type="button" class="mini-btn" id="refreshModels" title="从 API 重新获取模型列表">
+        <label data-i18n="modelsLabel">勾选后在「翻译模型」中选择</label>
+        <button type="button" class="mini-btn" id="refreshModels" title="从 API 重新获取模型列表" data-i18n-title="fetchTitle">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg>
-          获取模型
+          <span data-i18n="fetch">获取</span>
         </button>
       </div>
-      <input type="text" id="model" list="modelOptions" placeholder="gpt-4o-mini / qwen-plus / deepseek-chat" autocomplete="off">
-      <datalist id="modelOptions"></datalist>
+      <div id="modelList" class="model-list" hidden></div>
+      <div class="model-add">
+        <input type="text" id="modelAddInput" placeholder="手动输入模型名称" data-i18n-placeholder="addPlaceholder" autocomplete="off">
+        <button type="button" class="mini-btn" id="modelAddBtn" data-i18n="add">添加</button>
+      </div>
       <span class="field-hint" id="modelHint">填写地址与密钥后，自动从 API 获取可用模型</span>
     </div>
   </details>
+  <script src="i18n.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

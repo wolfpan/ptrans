@@ -9,14 +9,63 @@ const DEFAULTS = {
 
 let currentHost = '';
 let alwaysSites = [];
+let enabledModels = []; // 勾选启用的模型，供「翻译模型」下拉选择
+let fetchedModels = []; // 最近一次从 API 获取到的完整模型列表
+
+// 目标语言与风格：value 为提示词使用的语言本名/风格键，显示文本由 i18n.js 按界面语言生成
+const LANG_VALUES = ['简体中文', '繁體中文', 'English', '日本語', '한국어', 'Español', 'Français', 'Deutsch', 'Italiano', 'Português', 'Русский', 'العربية', 'ไทย', 'Tiếng Việt', 'Bahasa Indonesia', 'Bahasa Melayu'];
+const STYLE_VALUES = ['strict', 'balanced', 'elegant'];
+
+function langItems(lang) {
+  return LANG_VALUES.map(value => ({ value, label: langLabel(lang, value) }));
+}
+
+function styleItems(lang) {
+  return STYLE_VALUES.map(value => {
+    const key = 'style' + value[0].toUpperCase() + value.slice(1);
+    return { value, label: t(lang, key), title: t(lang, key + 'Title') };
+  });
+}
+
+// ===== 界面语言跟随目标语言 =====
+let uiLang = DEFAULTS.targetLang;
+
+// 刷新全部界面文案：静态标记、两个下拉的显示文本、站点后缀与模型提示
+function applyI18n(lang) {
+  uiLang = lang;
+  document.documentElement.lang = LANG_TAGS[lang] || 'en';
+  document.documentElement.dir = lang === 'العربية' ? 'rtl' : 'ltr';
+  for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(lang, el.dataset.i18n);
+  for (const el of document.querySelectorAll('[data-i18n-title]')) el.title = t(lang, el.dataset.i18nTitle);
+  for (const el of document.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', t(lang, el.dataset.i18nAria));
+  for (const el of document.querySelectorAll('[data-i18n-placeholder]')) {
+    const text = t(lang, el.dataset.i18nPlaceholder);
+    el.setAttribute('placeholder', text);
+    el.dataset.placeholder = text; // syncDrop 的回退文本与之同源
+  }
+  // 重建下拉选项（value 不变，选中态保留）
+  setDropItems('targetLang', langItems(lang));
+  setDropItems('styleMode', styleItems(lang));
+  renderSiteHost();
+  renderModelHint();
+}
+
+function renderSiteHost() {
+  document.getElementById('siteHost').textContent = currentHost
+    ? t(uiLang, 'siteHost', { host: currentHost })
+    : t(uiLang, 'siteUnsupported');
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const data = await chrome.storage.local.get([...CONFIG_FIELDS, 'alwaysSites']);
+  const data = await chrome.storage.local.get([...CONFIG_FIELDS, 'alwaysSites', 'enabledModels']);
   document.getElementById('baseUrl').value = data.baseUrl || DEFAULTS.baseUrl;
   document.getElementById('apiKey').value = data.apiKey || '';
-  document.getElementById('model').value = data.model || DEFAULTS.model;
-  document.getElementById('targetLang').value = data.targetLang || DEFAULTS.targetLang;
-  document.getElementById('styleMode').value = data.styleMode || DEFAULTS.styleMode;
+  uiLang = data.targetLang || DEFAULTS.targetLang;
+  setupDrop('targetLang', langItems(uiLang), value => { saveConfig(); applyI18n(value); });
+  setupDrop('styleMode', styleItems(uiLang), saveConfig);
+  setupDrop('model', [], saveConfig);
+  setVal('targetLang', uiLang);
+  setVal('styleMode', data.styleMode || DEFAULTS.styleMode);
   document.getElementById('explainTerms').checked = !!data.explainTerms;
   document.getElementById('hoverCtrl').checked = !!data.hoverCtrl;
   document.getElementById('autoEnglish').checked = !!data.autoEnglish;
@@ -28,6 +77,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   if (Object.keys(missing).length > 0) await chrome.storage.local.set(missing);
 
+  // 勾选列表：旧版本只存了单个 model，升级时自动迁移为勾选项
+  enabledModels = Array.isArray(data.enabledModels) ? data.enabledModels : [];
+  if (enabledModels.length === 0) {
+    enabledModels = [data.model || DEFAULTS.model];
+    await chrome.storage.local.set({ enabledModels });
+  }
+  renderModelDrop();
+  setVal('model', data.model || DEFAULTS.model);
+
   // 未配置密钥时展开 API 抽屉，引导首次填写
   if (!data.apiKey) document.getElementById('apiDrawer').open = true;
 
@@ -36,31 +94,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   try { currentHost = tab && tab.url ? new URL(tab.url).hostname : ''; } catch { currentHost = ''; }
   const siteBox = document.getElementById('alwaysSite');
-  const siteHost = document.getElementById('siteHost');
   if (!currentHost) {
     siteBox.disabled = true;
-    siteHost.textContent = '（当前页面不支持）';
   } else {
-    siteHost.textContent = `（${currentHost}）`;
     siteBox.checked = alwaysSites.includes(currentHost);
   }
+  applyI18n(uiLang);
 
   // 所有设置即时保存：自动翻译与悬停翻译直接读取存储，不依赖点击翻译按钮
-  for (const id of CONFIG_FIELDS) {
+  // （三个下拉为自定义组件，选中时自行调用 saveConfig）
+  for (const id of ['baseUrl', 'apiKey', 'explainTerms', 'hoverCtrl', 'autoEnglish']) {
     document.getElementById(id).addEventListener('change', saveConfig);
   }
   siteBox.addEventListener('change', saveAlwaysSites);
 
-  // 模型胶囊行与抽屉入口
+  // 模型状态点与抽屉入口
   updateModelRow();
-  for (const id of ['baseUrl', 'apiKey', 'model']) {
+  for (const id of ['baseUrl', 'apiKey']) {
     document.getElementById(id).addEventListener('input', updateModelRow);
   }
   document.getElementById('settingsBtn').addEventListener('click', toggleDrawer);
   document.getElementById('apiCard').addEventListener('click', toggleDrawer);
-  document.getElementById('modelRow').addEventListener('click', () => {
-    document.getElementById('apiDrawer').open = true;
-    document.getElementById('model').focus();
+  document.getElementById('modelAddBtn').addEventListener('click', addManualModel);
+  document.getElementById('modelAddInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); addManualModel(); }
   });
   document.getElementById('apiDrawer').addEventListener('toggle', () => {
     const open = document.getElementById('apiDrawer').open;
@@ -72,6 +129,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   for (const id of ['baseUrl', 'apiKey']) {
     document.getElementById(id).addEventListener('change', () => loadModels());
   }
+  // 填入 API 后首次自动获取：输入停顿 800ms 即拉取，无需点击「获取」
+  let autoFetchTimer = null;
+  for (const id of ['baseUrl', 'apiKey']) {
+    document.getElementById(id).addEventListener('input', () => {
+      clearTimeout(autoFetchTimer);
+      autoFetchTimer = setTimeout(() => loadModels(), 800);
+    });
+  }
   document.getElementById('refreshModels').addEventListener('click', () => loadModels(true));
 });
 
@@ -79,10 +144,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 let modelReqToken = 0;
 let modelsLoadedFor = ''; // 已成功加载过列表的 地址+密钥 组合，避免重复请求
 
-function setModelHint(text, isError = false) {
+// 提示按 key+参数 记录，切换界面语言时可原样重译
+let modelHintState = { key: 'hintDefault', params: {}, isError: false };
+
+function setModelHint(key, params = {}, isError = false) {
+  modelHintState = { key, params, isError };
+  renderModelHint();
+}
+
+function renderModelHint() {
   const hint = document.getElementById('modelHint');
-  hint.textContent = text;
-  hint.classList.toggle('error', isError);
+  hint.textContent = t(uiLang, modelHintState.key, modelHintState.params);
+  hint.classList.toggle('error', modelHintState.isError);
 }
 
 async function loadModels(force = false) {
@@ -92,12 +165,12 @@ async function loadModels(force = false) {
   const combo = `${baseUrl}\n${apiKey}`;
 
   if (!baseUrl) {
-    setModelHint('填写 API Base URL 后自动获取可用模型');
+    setModelHint('hintNeedUrl');
     return;
   }
   // 未配密钥且非本机服务时不发请求（首次安装的默认地址必然 401）
   if (!apiKey && !/localhost|127\.0\.0\.1/.test(baseUrl)) {
-    setModelHint('填写 API Key 后自动获取可用模型（本机服务无需密钥）');
+    setModelHint('hintNeedKey');
     return;
   }
   if (!force && modelsLoadedFor === combo) return;
@@ -105,24 +178,19 @@ async function loadModels(force = false) {
   const token = ++modelReqToken;
   btn.disabled = true;
   btn.classList.add('spinning');
-  setModelHint('正在获取模型列表…');
+  setModelHint('hintLoading');
   try {
     const resp = await chrome.runtime.sendMessage({ action: 'LIST_MODELS', config: { baseUrl, apiKey } });
     if (token !== modelReqToken) return; // 已有更新的请求，丢弃过期结果
     if (!resp || !resp.success) throw new Error((resp && resp.error) || '后台无响应');
 
-    const list = document.getElementById('modelOptions');
-    list.textContent = '';
-    for (const id of resp.models) {
-      const opt = document.createElement('option');
-      opt.value = id;
-      list.appendChild(opt);
-    }
+    fetchedModels = resp.models;
+    renderModelList();
     modelsLoadedFor = combo;
-    setModelHint(`已获取 ${resp.models.length} 个模型，点击输入框选择，也可手动输入`);
+    setModelHint('hintLoaded', { count: resp.models.length });
   } catch (err) {
     if (token !== modelReqToken) return;
-    setModelHint(`获取失败：${err.message}。仍可手动输入模型名称`, true);
+    setModelHint('hintFailed', { error: err.message }, true);
   } finally {
     if (token === modelReqToken) {
       btn.disabled = false;
@@ -131,13 +199,169 @@ async function loadModels(force = false) {
   }
 }
 
-// 模型行：实时显示模型名；状态点口径同 content.js autoConfigReady（已配密钥或本机服务）
+// 模型行状态点：口径同 content.js autoConfigReady（已配密钥或本机服务）
 function updateModelRow() {
   const baseUrl = document.getElementById('baseUrl').value.trim();
   const apiKey = document.getElementById('apiKey').value.trim();
-  const model = document.getElementById('model').value.trim();
-  document.getElementById('modelValue').textContent = model || DEFAULTS.model;
   document.getElementById('modelDot').classList.toggle('ready', !!(apiKey || /localhost|127\.0\.0\.1/.test(baseUrl)));
+}
+
+// ===== 自定义下拉 =====
+// 原生 select 的弹出层由系统渲染、无法用 CSS 统一风格，故三个下拉均用自定义面板
+const drops = {}; // id -> { items, value, onChange }
+
+function setupDrop(id, items, onChange) {
+  drops[id] = { items: [], value: '', onChange };
+  document.getElementById(id).addEventListener('click', () => toggleDrop(id));
+  setDropItems(id, items);
+}
+
+function setDropItems(id, items) {
+  const state = drops[id];
+  state.items = items;
+  const panel = document.getElementById(id + 'Drop');
+  panel.textContent = '';
+  for (const item of items) {
+    const opt = document.createElement('button');
+    opt.type = 'button';
+    opt.className = 'drop-item';
+    opt.setAttribute('role', 'option');
+    opt.dataset.value = item.value;
+    if (item.title) opt.title = item.title;
+    const check = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    check.setAttribute('class', 'check');
+    check.setAttribute('viewBox', '0 0 24 24');
+    check.setAttribute('fill', 'none');
+    check.setAttribute('stroke', 'currentColor');
+    check.setAttribute('stroke-width', '2.5');
+    check.setAttribute('stroke-linecap', 'round');
+    check.setAttribute('stroke-linejoin', 'round');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M20 6 9 17l-5-5');
+    check.appendChild(path);
+    const text = document.createElement('span');
+    text.className = 'drop-item-text';
+    text.textContent = item.label;
+    opt.append(check, text);
+    opt.addEventListener('click', () => {
+      setVal(id, item.value);
+      closeAllDrops();
+      if (state.onChange) state.onChange(item.value);
+    });
+    panel.appendChild(opt);
+  }
+  // 当前值不在新列表中时回退到第一项
+  if (!items.some(i => i.value === state.value)) state.value = items[0] ? items[0].value : '';
+  syncDrop(id);
+}
+
+// 同步胶囊显示文本与面板选中态
+function syncDrop(id) {
+  const state = drops[id];
+  const btn = document.getElementById(id);
+  const current = state.items.find(i => i.value === state.value);
+  btn.textContent = current ? current.label : (btn.dataset.placeholder || '');
+  document.getElementById(id + 'Drop').querySelectorAll('.drop-item').forEach(el => {
+    const selected = el.dataset.value === state.value;
+    el.classList.toggle('selected', selected);
+    el.setAttribute('aria-selected', String(selected));
+  });
+}
+
+function getVal(id) { return drops[id].value; }
+
+function setVal(id, value) {
+  const state = drops[id];
+  if (state.items.some(i => i.value === value)) state.value = value;
+  syncDrop(id);
+}
+
+function toggleDrop(id) {
+  const panel = document.getElementById(id + 'Drop');
+  const willOpen = panel.hidden;
+  closeAllDrops();
+  if (willOpen) {
+    panel.hidden = false;
+    document.getElementById(id).closest('.pill').classList.add('open');
+    const selected = panel.querySelector('.drop-item.selected');
+    if (selected) selected.scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function closeAllDrops() {
+  for (const id of Object.keys(drops)) {
+    document.getElementById(id + 'Drop').hidden = true;
+    document.getElementById(id).closest('.pill').classList.remove('open');
+  }
+}
+
+// 点击面板与胶囊之外、或按 Escape 时收起
+document.addEventListener('click', e => {
+  if (!e.target.closest('.pill')) closeAllDrops();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeAllDrops();
+});
+
+// ===== 模型勾选与下拉联动 =====
+
+// 勾选列表：来自 API 的完整列表，勾选状态取自 enabledModels
+function renderModelList() {
+  const box = document.getElementById('modelList');
+  box.textContent = '';
+  if (fetchedModels.length === 0) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  for (const id of fetchedModels) {
+    const label = document.createElement('label');
+    label.className = 'model-item';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = enabledModels.includes(id);
+    cb.addEventListener('change', () => toggleModel(id, cb.checked));
+    const name = document.createElement('span');
+    name.className = 'model-name';
+    name.textContent = id;
+    name.title = id;
+    label.append(cb, name);
+    box.appendChild(label);
+  }
+}
+
+// 「翻译模型」下拉：只列勾选启用的模型
+function renderModelDrop() {
+  setDropItems('model', enabledModels.map(id => ({ value: id, label: id })));
+}
+
+async function toggleModel(id, checked) {
+  const set = new Set(enabledModels);
+  if (checked) set.add(id); else set.delete(id);
+  enabledModels = [...set];
+  await chrome.storage.local.set({ enabledModels });
+  const wasCurrent = getVal('model') === id;
+  renderModelDrop();
+  // 取消勾选的恰是当前使用的模型时，自动切换到列表中的第一个
+  if (!checked && wasCurrent) await saveConfig();
+}
+
+// 手动添加：兼容不支持 /models 的接口，或列表未收录的模型名
+async function addManualModel() {
+  const input = document.getElementById('modelAddInput');
+  const id = input.value.trim();
+  if (!id) return;
+  if (!enabledModels.includes(id)) {
+    enabledModels = [...enabledModels, id];
+    await chrome.storage.local.set({ enabledModels });
+  }
+  if (!fetchedModels.includes(id)) fetchedModels = [...fetchedModels, id];
+  renderModelList(); // 手动添加的模型也出现在列表中，保持勾选状态一致
+  renderModelDrop();
+  setVal('model', id);
+  await saveConfig();
+  input.value = '';
+  setModelHint('hintAdded', { id });
 }
 
 function toggleDrawer() {
@@ -149,9 +373,9 @@ async function saveConfig() {
   const config = {
     baseUrl: document.getElementById('baseUrl').value.trim().replace(/\/+$/, ''),
     apiKey: document.getElementById('apiKey').value.trim(),
-    model: document.getElementById('model').value.trim(),
-    targetLang: document.getElementById('targetLang').value,
-    styleMode: document.getElementById('styleMode').value,
+    model: getVal('model'),
+    targetLang: getVal('targetLang'),
+    styleMode: getVal('styleMode'),
     explainTerms: document.getElementById('explainTerms').checked,
     hoverCtrl: document.getElementById('hoverCtrl').checked,
     autoEnglish: document.getElementById('autoEnglish').checked
@@ -175,22 +399,21 @@ async function saveAlwaysSites() {
 // 向当前标签页的 content script 发消息；失败时给出明确提示而不是静默关窗
 async function sendToTab(message) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab || !tab.id) throw new Error('找不到当前标签页');
+  if (!tab || !tab.id) throw new Error(t(uiLang, 'errNoTab'));
   await chrome.tabs.sendMessage(tab.id, message);
 }
 
 document.getElementById('translateBtn').addEventListener('click', async () => {
   const config = await saveConfig();
   if (!config.baseUrl || !config.model) {
-    alert('请先在「API 设置」中填写 API Base URL 和模型名称。');
+    alert(t(uiLang, 'alertConfig'));
     return;
   }
   try {
     await sendToTab({ action: 'START_TRANSLATE', config });
     window.close();
   } catch (err) {
-    alert('无法连接页面中的翻译脚本：\n' + err.message +
-      '\n\n请先刷新目标网页后再点翻译。（扩展安装/更新后，已打开的页面必须刷新才会注入脚本；chrome:// 与商店页面无法翻译。）');
+    alert(t(uiLang, 'errConnect', { error: err.message }));
   }
 });
 
@@ -199,6 +422,6 @@ document.getElementById('restoreBtn').addEventListener('click', async () => {
     await sendToTab({ action: 'RESTORE_ORIGINAL' });
     window.close();
   } catch (err) {
-    alert('无法连接页面中的翻译脚本，请先刷新目标网页。\n' + err.message);
+    alert(t(uiLang, 'errRestore', { error: err.message }));
   }
 });
