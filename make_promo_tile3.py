@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
-"""生成 Chrome 应用商店宣传图块 3（写实界面展示）：
-promo_tile_3_1280x800.png —— 真实 WIRED 整页翻译截图（含设置面板）+ ①②③ 标注与图例。
+"""生成 Chrome 应用商店宣传图块 3（写实界面展示，Mac 风格浏览器边框）：
+promo_tile_3_1280x800.png —— WIRED 整页中文翻译截图（含设置面板），
+裁去源图自带的 Chrome 工具栏（y<202），改绘 macOS 风格窗框：
+红黄绿信号灯 + 居中地址栏。无标注、无图例。
 1280x800、24 位 RGB PNG（无 alpha）。素材：素材/ScreenShot_2026-11-18_215048_660.png
-（经 OCR 确认为 www.wired.com 中文译文页，面板位于源图 x≈1472–2194, y≈215–1300）。
+（经 OCR 确认为 www.wired.com 中文译文页）。
 """
 import os
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -15,14 +17,18 @@ OUT = os.path.join(BASE, "store_assets")
 FONT_BOLD = "C:/Windows/Fonts/msyhbd.ttc"
 FONT_REG = "C:/Windows/Fonts/msyh.ttc"
 
-C1 = (37, 99, 235)
 BG = (246, 247, 251)
 CARD = (255, 255, 255)
 BORDER = (228, 231, 240)
 INK = (31, 37, 51)
 GRAY = (92, 101, 117)
+TOOLBAR = (246, 246, 248)
+URL_BORDER = (226, 228, 234)
+URL_TEXT = (120, 127, 140)
+DOTS = ((255, 95, 87), (254, 188, 46), (40, 200, 64))
 
 W, H = 1280, 800
+PAGE_TOP = 202  # 源图中 Chrome 工具栏结束、页面开始的行
 
 
 def font(path, size):
@@ -66,50 +72,45 @@ f_sub = font(FONT_REG, 20)
 sub = "WIRED 整页翻译效果 · 设置面板"
 text(d, (W - 64 - text_w(d, sub, f_sub), 60), sub, f_sub, GRAY)
 
-# 中央真实截图（等比缩放，圆角卡片）
+# 页面内容（裁去源图 Chrome 工具栏）
 shot = Image.open(SHOT).convert("RGB")
-orig_w = shot.width
-sw = 900
-sh = round(shot.height * sw / orig_w)
-shot = shot.resize((sw, sh), Image.LANCZOS)
-sx, sy = (W - sw) // 2, 112
-soft_shadow(img, (sx, sy, sw, sh), 14)
+shot = shot.crop((0, PAGE_TOP, shot.width, shot.height))
+
+# Mac 风格窗框
+fw = 1000
+bar_h = 48
+inner_w = fw - 4
+content_h = round(shot.height * inner_w / shot.width)
+fh = bar_h + content_h
+fx, fy = (W - fw) // 2, 112
+shot = shot.resize((inner_w, content_h), Image.LANCZOS)
+
+soft_shadow(img, (fx, fy, fw, fh), 14)
 d = ImageDraw.Draw(img)
-img.paste(shot, (sx, sy), rounded_mask((sw, sh), 14))
-d.rounded_rectangle([sx, sy, sx + sw, sy + sh], 14, outline=BORDER, width=2)
-
-# 标注点：源图坐标 -> 缩放后坐标
-scale = sw / orig_w
-marks = [
-    ("1", (700, 1000)),    # 译文正文
-    ("2", (1830, 350)),    # 面板：语言/风格/模型
-    ("3", (1830, 1235)),   # 面板：还原原文
-]
-f_num = font(FONT_BOLD, 19)
-for num, (ox, oy) in marks:
-    cx, cy = sx + ox * scale, sy + oy * scale
-    r = 15
-    d.ellipse([cx - r - 2, cy - r - 2, cx + r + 2, cy + r + 2], fill=CARD)
-    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=C1)
-    bb = d.textbbox((0, 0), num, font=f_num)
-    d.text((cx - (bb[2] - bb[0]) / 2 - bb[0], cy - (bb[3] - bb[1]) / 2 - bb[1]),
-           num, font=f_num, fill=CARD)
-
-# 底部图例
-f_leg = font(FONT_REG, 19)
-legs = ("① 译文原地替换，排版不变", "② 语言 · 风格 · 模型可选", "③ 一键还原原文")
-pads = 18
-widths = [text_w(d, s, f_leg) + pads * 2 for s in legs]
-total = sum(widths) + 16 * (len(legs) - 1)
-lx = (W - total) // 2
-ly = sy + sh + 22
-for s, w in zip(legs, widths):
-    d.rounded_rectangle([lx, ly, lx + w, ly + 40], 20, fill=CARD, outline=BORDER, width=2)
-    text(d, (lx + pads, ly + 9), s, f_leg, INK)
-    lx += w + 16
+d.rounded_rectangle([fx, fy, fx + fw, fy + fh], 14, fill=CARD, outline=BORDER, width=2)
+# 工具栏（上圆角、下直角）
+d.rounded_rectangle([fx + 2, fy + 2, fx + fw - 2, fy + bar_h], 12, fill=TOOLBAR)
+d.rectangle([fx + 2, fy + 30, fx + fw - 2, fy + bar_h], fill=TOOLBAR)
+d.line([fx + 2, fy + bar_h, fx + fw - 2, fy + bar_h], fill=BORDER, width=1)
+# 红黄绿信号灯
+for i, c in enumerate(DOTS):
+    cx, cy, r = fx + 26 + i * 22, fy + bar_h // 2, 6
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=c)
+# 居中地址栏 + 小锁
+pw, ph = 380, 28
+px0, py0 = fx + (fw - pw) // 2, fy + (bar_h - ph) // 2
+d.rounded_rectangle([px0, py0, px0 + pw, py0 + ph], 8, fill=CARD, outline=URL_BORDER, width=1)
+lx, ly = px0 + 16, py0 + ph // 2
+d.rounded_rectangle([lx - 5, ly - 1, lx + 5, ly + 7], 2, fill=URL_TEXT)
+d.arc([lx - 4, ly - 7, lx + 4, ly + 1], start=180, end=360, fill=URL_TEXT, width=2)
+f_url = font(FONT_REG, 15)
+url = "www.wired.com"
+text(d, (px0 + (pw - text_w(d, url, f_url)) / 2 + 8, py0 + 6), url, f_url, URL_TEXT)
+# 页面内容（底部圆角贴合窗框）
+img.paste(shot, (fx + 2, fy + bar_h), rounded_mask((inner_w, content_h), 12))
 
 p = os.path.join(OUT, "promo_tile_3_1280x800.png")
 img.convert("RGB").save(p, "PNG")
 with Image.open(p) as im:
     print(os.path.basename(p), im.size, im.mode, os.path.getsize(p), "bytes")
-print("screenshot box:", (sx, sy, sw, sh), "legend bottom:", ly + 40)
+print("frame box:", (fx, fy, fw, fh), "bottom:", fy + fh)
