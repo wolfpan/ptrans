@@ -9,3 +9,4 @@ exports/*.zip
 
 # 截图原图与中间产物（商店素材成品在 store_assets/）
 tmp/
+素材/
