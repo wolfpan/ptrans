@@ -8,6 +8,7 @@ const DEFAULTS = {
 };
 
 let currentHost = '';
+let pageLang = null; // 当前页面主语言（内容脚本检测），判不出为 null
 let alwaysSites = [];
 let enabledModels = []; // 勾选启用的模型，供「翻译模型」下拉选择
 let fetchedModels = []; // 最近一次从 API 获取到的完整模型列表
@@ -47,6 +48,7 @@ function applyI18n(lang) {
   setDropItems('targetLang', langItems(lang));
   setDropItems('styleMode', styleItems(lang));
   renderSiteHost();
+  renderAutoLangLabel();
   renderModelHint();
 }
 
@@ -54,6 +56,14 @@ function renderSiteHost() {
   document.getElementById('siteHost').textContent = currentHost
     ? t(uiLang, 'siteHost', { host: currentHost })
     : t(uiLang, 'siteUnsupported');
+}
+
+// 自动翻译开关文案跟随当前页面语言；判不出或与目标语言相同时用通用文案
+function renderAutoLangLabel() {
+  const label = document.querySelector('label[for="autoEnglish"]');
+  label.textContent = pageLang && pageLang !== uiLang
+    ? t(uiLang, 'autoLang', { lang: langLabel(uiLang, pageLang) })
+    : t(uiLang, 'autoForeign');
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -77,14 +87,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   if (Object.keys(missing).length > 0) await chrome.storage.local.set(missing);
 
-  // 勾选列表：旧版本只存了单个 model，升级时自动迁移为勾选项
-  enabledModels = Array.isArray(data.enabledModels) ? data.enabledModels : [];
-  if (enabledModels.length === 0) {
+  // 勾选列表：旧版本只存了单个 model，升级时自动迁移为勾选项；
+  // 已有列表（含用户主动清空的空数组）原样保留，避免默认模型被反复写回
+  if (Array.isArray(data.enabledModels)) {
+    enabledModels = data.enabledModels;
+  } else {
     enabledModels = [data.model || DEFAULTS.model];
     await chrome.storage.local.set({ enabledModels });
   }
   renderModelDrop();
   setVal('model', data.model || DEFAULTS.model);
+  // 存储中的模型不在勾选列表时（如换 API 后遗留），下拉已回退到实际可选项，
+  // 把该选择写回存储，避免内容脚本仍按旧模型发请求
+  if (getVal('model') !== (data.model || DEFAULTS.model)) await saveConfig();
 
   // 未配置密钥时展开 API 抽屉，引导首次填写
   if (!data.apiKey) document.getElementById('apiDrawer').open = true;
@@ -93,6 +108,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   alwaysSites = Array.isArray(data.alwaysSites) ? data.alwaysSites : [];
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   try { currentHost = tab && tab.url ? new URL(tab.url).hostname : ''; } catch { currentHost = ''; }
+  // 页面语言检测失败（chrome://、商店页、扩展更新后未刷新的页面）时回退通用文案
+  try {
+    const resp = await sendToTab({ action: 'DETECT_LANG' });
+    pageLang = (resp && resp.lang) || null;
+  } catch { pageLang = null; }
   const siteBox = document.getElementById('alwaysSite');
   if (!currentHost) {
     siteBox.disabled = true;
@@ -305,16 +325,19 @@ document.addEventListener('keydown', e => {
 
 // ===== 模型勾选与下拉联动 =====
 
-// 勾选列表：来自 API 的完整列表，勾选状态取自 enabledModels
+// 勾选列表：API 列表 + 已勾选但不在其中的模型（换 API 前遗留或手动添加），
+// 否则遗留模型（如默认的 gpt-4o-mini）没有复选框、永远无法取消勾选
 function renderModelList() {
   const box = document.getElementById('modelList');
   box.textContent = '';
-  if (fetchedModels.length === 0) {
+  const extras = enabledModels.filter(id => !fetchedModels.includes(id));
+  const ids = [...extras, ...fetchedModels];
+  if (ids.length === 0) {
     box.hidden = true;
     return;
   }
   box.hidden = false;
-  for (const id of fetchedModels) {
+  for (const id of ids) {
     const label = document.createElement('label');
     label.className = 'model-item';
     const cb = document.createElement('input');
