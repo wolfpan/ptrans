@@ -11,6 +11,7 @@ let currentHost = '';
 let pageLang = null; // 当前页面主语言（内容脚本检测），判不出为 null
 let alwaysSites = [];
 let enabledModels = []; // 勾选启用的模型，供「翻译模型」下拉选择
+let manualModels = []; // 手动添加的模型，API 列表获取成功后不被自动移除
 let fetchedModels = []; // 最近一次从 API 获取到的完整模型列表
 
 // 目标语言与风格：value 为提示词使用的语言本名/风格键，显示文本由 i18n.js 按界面语言生成
@@ -67,7 +68,7 @@ function renderAutoLangLabel() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const data = await chrome.storage.local.get([...CONFIG_FIELDS, 'alwaysSites', 'enabledModels']);
+  const data = await chrome.storage.local.get([...CONFIG_FIELDS, 'alwaysSites', 'enabledModels', 'manualModels']);
   document.getElementById('baseUrl').value = data.baseUrl || DEFAULTS.baseUrl;
   document.getElementById('apiKey').value = data.apiKey || '';
   uiLang = data.targetLang || DEFAULTS.targetLang;
@@ -95,6 +96,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     enabledModels = [data.model || DEFAULTS.model];
     await chrome.storage.local.set({ enabledModels });
   }
+  manualModels = Array.isArray(data.manualModels) ? data.manualModels : [];
   renderModelDrop();
   setVal('model', data.model || DEFAULTS.model);
   // 存储中的模型不在勾选列表时（如换 API 后遗留），下拉已回退到实际可选项，
@@ -158,6 +160,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
   document.getElementById('refreshModels').addEventListener('click', () => loadModels(true));
+
+  // 已配置密钥（或本机服务）时打开弹窗即拉取列表，遗留的无效模型无需展开抽屉即可被清理
+  if (data.apiKey || /localhost|127\.0\.0\.1/.test(data.baseUrl || DEFAULTS.baseUrl)) loadModels();
 });
 
 // ===== 模型列表自动获取 =====
@@ -205,9 +210,20 @@ async function loadModels(force = false) {
     if (!resp || !resp.success) throw new Error((resp && resp.error) || '后台无响应');
 
     fetchedModels = resp.models;
+    // 获取成功后以 API 列表为准：自动取消勾选 API 未提供的模型（如默认的 gpt-4o-mini），
+    // 仅保留手动添加的模型，避免下拉继续选用 API 无法服务的模型
+    const removed = enabledModels.filter(id => !fetchedModels.includes(id) && !manualModels.includes(id));
+    if (removed.length > 0) {
+      enabledModels = enabledModels.filter(id => !removed.includes(id));
+      await chrome.storage.local.set({ enabledModels });
+      renderModelDrop();
+      await saveConfig(); // 当前模型被移除时下拉已回退，把新选择写回存储
+      setModelHint('hintPruned', { count: resp.models.length, ids: removed.join(', ') });
+    } else {
+      setModelHint('hintLoaded', { count: resp.models.length });
+    }
     renderModelList();
     modelsLoadedFor = combo;
-    setModelHint('hintLoaded', { count: resp.models.length });
   } catch (err) {
     if (token !== modelReqToken) return;
     setModelHint('hintFailed', { error: err.message }, true);
@@ -325,12 +341,12 @@ document.addEventListener('keydown', e => {
 
 // ===== 模型勾选与下拉联动 =====
 
-// 勾选列表：API 列表 + 已勾选但不在其中的模型（换 API 前遗留或手动添加），
-// 否则遗留模型（如默认的 gpt-4o-mini）没有复选框、永远无法取消勾选
+// 勾选列表：API 列表 + 不在其中的手动添加模型与遗留勾选（尚未成功获取列表时），
+// 保证它们都有复选框可取消勾选；获取成功后遗留的非手动模型已由 loadModels 自动移除
 function renderModelList() {
   const box = document.getElementById('modelList');
   box.textContent = '';
-  const extras = enabledModels.filter(id => !fetchedModels.includes(id));
+  const extras = [...new Set([...enabledModels, ...manualModels])].filter(id => !fetchedModels.includes(id));
   const ids = [...extras, ...fetchedModels];
   if (ids.length === 0) {
     box.hidden = true;
@@ -374,10 +390,9 @@ async function addManualModel() {
   const input = document.getElementById('modelAddInput');
   const id = input.value.trim();
   if (!id) return;
-  if (!enabledModels.includes(id)) {
-    enabledModels = [...enabledModels, id];
-    await chrome.storage.local.set({ enabledModels });
-  }
+  if (!enabledModels.includes(id)) enabledModels = [...enabledModels, id];
+  if (!manualModels.includes(id)) manualModels = [...manualModels, id];
+  await chrome.storage.local.set({ enabledModels, manualModels });
   if (!fetchedModels.includes(id)) fetchedModels = [...fetchedModels, id];
   renderModelList(); // 手动添加的模型也出现在列表中，保持勾选状态一致
   renderModelDrop();
