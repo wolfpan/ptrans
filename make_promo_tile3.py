@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """生成 Chrome 应用商店宣传图块 3（写实界面展示，Mac 风格浏览器边框）：
-promo_tile_3_1280x800.png —— WIRED 整页中文翻译截图（含设置面板），
-裁去源图自带的 Chrome 工具栏（y<202），改绘 macOS 风格窗框：
-红黄绿信号灯 + 居中地址栏。无标注、无图例。
-1280x800、24 位 RGB PNG（无 alpha）。素材：素材/ScreenShot_2026-11-18_215048_660.png
-（经 OCR 确认为 www.wired.com 中文译文页）。
+promo_tile_3_1280x800.png —— Mac 窗框内：WIRED 整页中文翻译截图做柔化浅色背景
+（裁去源图 Chrome 深色工具栏 y<202、左侧深色窗边 x<8、右侧 Windows 滚动条 x>2960），
+右上角原位叠加清晰的真实设置面板截图；右侧绘 macOS 悬浮式滚动条。
+1280x800、24 位 RGB PNG（无 alpha）。
+素材：素材/ScreenShot_2026-11-18_215048_660.png（OCR 确认 www.wired.com 中文译文页）
+      素材/ScreenShot_2026-11-18_215753_095.png（扩展设置面板，722x1082）
 """
 import os
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -12,6 +13,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 BASE = os.path.dirname(os.path.abspath(__file__))
 ICON = os.path.join(BASE, "Ptrans", "icons", "icon128.png")
 SHOT = os.path.join(BASE, "素材", "ScreenShot_2026-11-18_215048_660.png")
+POPUP = os.path.join(BASE, "素材", "ScreenShot_2026-11-18_215753_095.png")
 OUT = os.path.join(BASE, "store_assets")
 
 FONT_BOLD = "C:/Windows/Fonts/msyhbd.ttc"
@@ -26,9 +28,12 @@ TOOLBAR = (246, 246, 248)
 URL_BORDER = (226, 228, 234)
 URL_TEXT = (120, 127, 140)
 DOTS = ((255, 95, 87), (254, 188, 46), (40, 200, 64))
+SCROLL_THUMB = (205, 207, 214)
 
 W, H = 1280, 800
-PAGE_TOP = 202  # 源图中 Chrome 工具栏结束、页面开始的行
+PAGE_TOP = 202   # 源图 Chrome 工具栏结束行
+PAGE_LEFT = 8    # 源图左侧深色窗边
+PAGE_RIGHT = 2960  # 源图 Windows 滚动条左缘
 
 
 def font(path, size):
@@ -72,31 +77,36 @@ f_sub = font(FONT_REG, 20)
 sub = "WIRED 整页翻译效果 · 设置面板"
 text(d, (W - 64 - text_w(d, sub, f_sub), 60), sub, f_sub, GRAY)
 
-# 页面内容（裁去源图 Chrome 工具栏）
-shot = Image.open(SHOT).convert("RGB")
-shot = shot.crop((0, PAGE_TOP, shot.width, shot.height))
-
 # Mac 风格窗框
-fw = 1000
-bar_h = 48
+fw, bar_h = 1160, 48
 inner_w = fw - 4
-content_h = round(shot.height * inner_w / shot.width)
+content_h = 600
 fh = bar_h + content_h
 fx, fy = (W - fw) // 2, 112
-shot = shot.resize((inner_w, content_h), Image.LANCZOS)
+
+# 页面背景：裁净 -> 抹去原面板残影 -> 覆盖缩放（顶对齐保留刊头）-> 柔化 -> 提亮
+page = Image.open(SHOT).convert("RGB")
+page = page.crop((PAGE_LEFT, PAGE_TOP, PAGE_RIGHT, page.height))
+ImageDraw.Draw(page).rectangle([1460 - PAGE_LEFT, 205 - PAGE_TOP,
+                                2210 - PAGE_LEFT, 1310 - PAGE_TOP], fill=CARD)
+s = max(inner_w / page.width, content_h / page.height)
+page = page.resize((round(page.width * s), round(page.height * s)), Image.LANCZOS)
+page = page.crop((0, 0, inner_w, content_h))
+page = page.filter(ImageFilter.GaussianBlur(10))
+page = Image.blend(page, Image.new("RGB", page.size, CARD), 0.5)
 
 soft_shadow(img, (fx, fy, fw, fh), 14)
 d = ImageDraw.Draw(img)
 d.rounded_rectangle([fx, fy, fx + fw, fy + fh], 14, fill=CARD, outline=BORDER, width=2)
+img.paste(page, (fx + 2, fy + bar_h), rounded_mask((inner_w, content_h), 12))
+d = ImageDraw.Draw(img)
 # 工具栏（上圆角、下直角）
 d.rounded_rectangle([fx + 2, fy + 2, fx + fw - 2, fy + bar_h], 12, fill=TOOLBAR)
 d.rectangle([fx + 2, fy + 30, fx + fw - 2, fy + bar_h], fill=TOOLBAR)
 d.line([fx + 2, fy + bar_h, fx + fw - 2, fy + bar_h], fill=BORDER, width=1)
-# 红黄绿信号灯
 for i, c in enumerate(DOTS):
     cx, cy, r = fx + 26 + i * 22, fy + bar_h // 2, 6
     d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=c)
-# 居中地址栏 + 小锁
 pw, ph = 380, 28
 px0, py0 = fx + (fw - pw) // 2, fy + (bar_h - ph) // 2
 d.rounded_rectangle([px0, py0, px0 + pw, py0 + ph], 8, fill=CARD, outline=URL_BORDER, width=1)
@@ -106,11 +116,26 @@ d.arc([lx - 4, ly - 7, lx + 4, ly + 1], start=180, end=360, fill=URL_TEXT, width
 f_url = font(FONT_REG, 15)
 url = "www.wired.com"
 text(d, (px0 + (pw - text_w(d, url, f_url)) / 2 + 8, py0 + 6), url, f_url, URL_TEXT)
-# 页面内容（底部圆角贴合窗框）
-img.paste(shot, (fx + 2, fy + bar_h), rounded_mask((inner_w, content_h), 12))
+
+# macOS 悬浮式滚动条（细圆角浅灰滑块）
+th_w, th_h = 7, 190
+th_x = fx + fw - 2 - th_w - 4
+th_y = fy + bar_h + 26
+d.rounded_rectangle([th_x, th_y, th_x + th_w, th_y + th_h], th_w // 2, fill=SCROLL_THUMB)
+
+# 右上角清晰面板（真实截图，原位放大）
+pop = Image.open(POPUP).convert("RGB")
+pop_w = 361
+pop_h = round(pop.height * pop_w / pop.width)
+pop = pop.resize((pop_w, pop_h), Image.LANCZOS)
+pop_x, pop_y = fx + fw - pop_w - 28, fy + bar_h + 16
+soft_shadow(img, (pop_x, pop_y, pop_w, pop_h), 10, blur=18, opacity=45)
+d = ImageDraw.Draw(img)
+img.paste(pop, (pop_x, pop_y), rounded_mask((pop_w, pop_h), 10))
+d.rounded_rectangle([pop_x, pop_y, pop_x + pop_w, pop_y + pop_h], 10, outline=BORDER, width=1)
 
 p = os.path.join(OUT, "promo_tile_3_1280x800.png")
 img.convert("RGB").save(p, "PNG")
 with Image.open(p) as im:
     print(os.path.basename(p), im.size, im.mode, os.path.getsize(p), "bytes")
-print("frame box:", (fx, fy, fw, fh), "bottom:", fy + fh)
+print("frame:", (fx, fy, fw, fh), "popup:", (pop_x, pop_y, pop_w, pop_h))
