@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Web Translator (OpenAI Compatible)",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "使用自定义大模型API直接原地翻译网页，支持翻译风格调节与专业术语括号解释。",
   "permissions": ["storage"],
   "host_permissions": ["<all_urls>"],

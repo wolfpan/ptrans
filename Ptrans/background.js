@@ -33,7 +33,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true; // 保持异步消息通道开启
   }
+  if (message.action === 'LIST_MODELS') {
+    listModels(message.config)
+      .then(models => sendResponse({ success: true, models }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
 });
+
+// 拉取 OpenAI 兼容接口的可用模型列表（GET /models）
+async function listModels(config) {
+  const endpoint = `${config.baseUrl}/models`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+
+  let response;
+  try {
+    response = await fetch(endpoint, {
+      headers: { 'Authorization': `Bearer ${config.apiKey || ''}` },
+      signal: controller.signal
+    });
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error('请求超时（15 秒）');
+    throw new Error(`无法连接 ${endpoint}：${err.message}`);
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`API HTTP ${response.status} @ ${endpoint}: ${body.slice(0, 200)}`);
+  }
+
+  const result = await response.json();
+  const items = Array.isArray(result?.data) ? result.data : Array.isArray(result) ? result : [];
+  const models = [...new Set(items.map(m => m && m.id).filter(Boolean))].sort();
+  if (models.length === 0) throw new Error('接口未返回模型列表（可能不支持 /models）');
+  return models;
+}
 
 async function handleTranslation(payload, config) {
   const tempMap = { strict: 0.1, balanced: 0.3, elegant: 0.6 };
