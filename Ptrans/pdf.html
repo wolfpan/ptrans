@@ -77,11 +77,26 @@
     .trans.pending { color: var(--faint); }
     body.trans-only .orig, body.trans-only .cols-head { display: none; }
     body.trans-only .block { grid-template-columns: 1fr; margin-bottom: 14px; }
+
+    /* 原页对照：左整页原图（sticky 随滚动固定）| 右该页译文；位图/矢量图/公式全保留 */
+    .page-img { display: none; }
+    .cols-head .col-page { display: none; }
+    body.page-view .page-body { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 28px; align-items: start; }
+    body.page-view .page-img { display: block; position: sticky; top: 70px; max-height: calc(100vh - 100px); border: 1px solid var(--border); border-radius: 12px; background: #fff; overflow: hidden; }
+    body.page-view .page-img canvas { display: block; width: 100%; height: auto; max-height: calc(100vh - 100px); object-fit: contain; object-position: top center; }
+    body.page-view .page-img .spinner { display: block; margin: 24px auto; }
+    body.page-view .img-error { display: block; padding: 12px; font-size: 12px; color: #dc2626; word-break: break-word; }
+    body.page-view .orig, body.page-view .cols-head .col-orig { display: none; }
+    body.page-view .cols-head .col-page { display: block; }
+    body.page-view .block { grid-template-columns: 1fr; margin-bottom: 14px; }
     /* 窄屏回退为上下堆叠，避免两栏过窄 */
     @media (max-width: 720px) {
       .block, .cols-head { grid-template-columns: 1fr; }
       .cols-head span:last-child { display: none; }
       .orig { margin-bottom: 6px; }
+      body.page-view .page-body { grid-template-columns: 1fr; }
+      body.page-view .page-img { position: static; max-height: none; }
+      body.page-view .page-img canvas { max-height: none; }
     }
 
     /* 提示条：与弹窗 / 页面端 toast 同一设计语言 */
@@ -124,6 +139,7 @@
     <section class="toolbar" id="toolbar" hidden>
       <div class="seg" role="group">
         <button type="button" class="seg-btn active" id="viewBoth" data-i18n="pdfViewBoth">双语对照</button>
+        <button type="button" class="seg-btn" id="viewPage" data-i18n="pdfViewPage">原页对照</button>
         <button type="button" class="seg-btn" id="viewTrans" data-i18n="pdfViewTrans">仅译文</button>
       </div>
       <div class="toolbar-actions">

@@ -13,6 +13,12 @@ let translating = false;
 let parsing = false;    // 文本层解析中（与 translating 一起构成「进行中」状态）
 let parseProgress = null; // { page, total }，供弹窗查询进度
 let loadedName = '';
+let pdfDoc = null;      // 文档保持存活，供「原页对照」懒渲染整页原图
+let docGen = 0;         // 文档世代令牌：换文件后丢弃跨世代的渲染结果
+let pageObserver = null;
+const renderQueue = [];
+const renderedPages = new Set();
+let rendering = false;
 
 function tt(key, params) {
   return t(uiLang, key, params);
@@ -180,13 +186,32 @@ function renderDoc() {
       const cols = document.createElement('div');
       cols.className = 'cols-head';
       const colOrig = document.createElement('span');
+      colOrig.className = 'col-orig';
       colOrig.dataset.i18n = 'pdfColOrig';
       colOrig.textContent = tt('pdfColOrig');
+      const colPage = document.createElement('span');
+      colPage.className = 'col-page';
+      colPage.dataset.i18n = 'pdfColPage';
+      colPage.textContent = tt('pdfColPage');
       const colTrans = document.createElement('span');
+      colTrans.className = 'col-trans';
       colTrans.dataset.i18n = 'pdfColTrans';
       colTrans.textContent = tt('pdfColTrans');
-      cols.append(colOrig, colTrans);
+      cols.append(colOrig, colPage, colTrans);
       pageEl.appendChild(cols);
+      // page-body：默认普通流（双语/仅译文）；原页对照时为「整页原图 | 译文」两栏
+      const body = document.createElement('div');
+      body.className = 'page-body';
+      const img = document.createElement('div');
+      img.className = 'page-img';
+      const spin = document.createElement('span');
+      spin.className = 'spinner';
+      img.appendChild(spin);
+      const blocksWrap = document.createElement('div');
+      blocksWrap.className = 'blocks';
+      body.append(img, blocksWrap);
+      pageEl.appendChild(body);
+      pageEl.dataset.page = pageNum;
       doc.appendChild(pageEl);
     }
     const wrap = document.createElement('div');
@@ -198,7 +223,7 @@ function renderDoc() {
     trans.className = 'trans pending';
     trans.textContent = '…';
     wrap.append(orig, trans);
-    pageEl.appendChild(wrap);
+    pageEl.querySelector('.blocks').appendChild(wrap);
     block.transEl = trans;
     block.done = false;
   }
@@ -276,6 +301,11 @@ async function translateAll() {
 // ===== 加载文档 =====
 
 function resetToInput() {
+  docGen++;
+  renderQueue.length = 0;
+  renderedPages.clear();
+  if (pageObserver) pageObserver.disconnect();
+  if (pdfDoc) { pdfDoc.destroy(); pdfDoc = null; }
   blocks = [];
   document.getElementById('doc').textContent = '';
   document.getElementById('toolbar').hidden = true;
@@ -294,6 +324,7 @@ async function loadDocument(source, name) {
   let pdf;
   try {
     pdf = await pdfjsLib.getDocument(source).promise;
+    pdfDoc = pdf; // 保持存活：原页对照视图按需渲染整页原图
   } catch (err) {
     parsing = false;
     parseProgress = null;
@@ -343,7 +374,6 @@ async function loadDocument(source, name) {
   } finally {
     parsing = false;
     parseProgress = null;
-    pdf.destroy();
   }
 }
 
@@ -430,16 +460,77 @@ document.getElementById('urlInput').addEventListener('keydown', e => {
   }
 });
 
-document.getElementById('viewBoth').addEventListener('click', () => {
-  document.body.classList.remove('trans-only');
-  document.getElementById('viewBoth').classList.add('active');
-  document.getElementById('viewTrans').classList.remove('active');
-});
-document.getElementById('viewTrans').addEventListener('click', () => {
-  document.body.classList.add('trans-only');
-  document.getElementById('viewTrans').classList.add('active');
-  document.getElementById('viewBoth').classList.remove('active');
-});
+// ===== 视图切换：双语对照 / 原页对照 / 仅译文 =====
+const VIEW_MODES = { viewBoth: '', viewTrans: 'trans-only', viewPage: 'page-view' };
+
+function setView(id) {
+  document.body.classList.remove('trans-only', 'page-view');
+  if (VIEW_MODES[id]) document.body.classList.add(VIEW_MODES[id]);
+  for (const key of Object.keys(VIEW_MODES)) {
+    document.getElementById(key).classList.toggle('active', key === id);
+  }
+  if (id === 'viewPage') observePages();
+  else if (pageObserver) pageObserver.disconnect();
+}
+
+document.getElementById('viewBoth').addEventListener('click', () => setView('viewBoth'));
+document.getElementById('viewTrans').addEventListener('click', () => setView('viewTrans'));
+document.getElementById('viewPage').addEventListener('click', () => setView('viewPage'));
+
+// ===== 原页对照：整页原图懒渲染 =====
+// 进入视图且页面接近视口才渲染，串行队列避免 CPU/内存尖峰；canvas 缓存后切回即时
+
+function observePages() {
+  if (!pageObserver) {
+    pageObserver = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) queuePageRender(Number(entry.target.dataset.page));
+      }
+    }, { rootMargin: '300px 0px' });
+  }
+  pageObserver.disconnect();
+  for (const el of document.querySelectorAll('.page')) pageObserver.observe(el);
+}
+
+function queuePageRender(n) {
+  if (!pdfDoc || renderedPages.has(n) || renderQueue.includes(n)) return;
+  renderQueue.push(n);
+  if (!rendering) drainRenderQueue();
+}
+
+async function drainRenderQueue() {
+  rendering = true;
+  while (renderQueue.length > 0) {
+    await renderPageImage(renderQueue.shift(), docGen);
+  }
+  rendering = false;
+}
+
+async function renderPageImage(n, gen) {
+  const holder = document.querySelector(`.page[data-page="${n}"] .page-img`);
+  if (!holder || !pdfDoc) return;
+  try {
+    const page = await pdfDoc.getPage(n);
+    const base = page.getViewport({ scale: 1 });
+    const viewport = page.getViewport({ scale: Math.min(2.5, 1100 / base.width) });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    page.cleanup();
+    if (gen !== docGen) return; // 已换文件，丢弃过期结果
+    renderedPages.add(n);
+    holder.textContent = '';
+    holder.appendChild(canvas);
+  } catch (err) {
+    if (gen !== docGen) return;
+    holder.textContent = '';
+    const msg = document.createElement('span');
+    msg.className = 'img-error';
+    msg.textContent = tt('pdfParseFailed', { error: (err && err.message) || String(err) });
+    holder.appendChild(msg);
+  }
+}
 
 document.getElementById('retranslateBtn').addEventListener('click', async () => {
   if (translating || blocks.length === 0) return;
