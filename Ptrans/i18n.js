@@ -84,6 +84,7 @@ const UI_STRINGS = {
     pdfColOrig: '原文',
     pdfColTrans: '译文',
     pdfFormula: '公式（保留原样）',
+    pdfFigure: '图表（保留原样）',
     pdfFileAccess: '本地文件链接需要先在扩展管理页（chrome://extensions）为本扩展开启「允许访问文件网址」，然后重试；也可以直接把 PDF 文件拖入上方虚线框。'
   },
 
@@ -168,6 +169,7 @@ const UI_STRINGS = {
     pdfColOrig: '原文',
     pdfColTrans: '譯文',
     pdfFormula: '公式（保留原樣）',
+    pdfFigure: '圖表（保留原樣）',
     pdfFileAccess: '本地檔案連結需要先在擴充功能管理頁（chrome://extensions）為本擴充功能開啟「允許存取檔案網址」，然後重試；也可以直接把 PDF 檔案拖入上方虛線框。'
   },
 
@@ -252,6 +254,7 @@ const UI_STRINGS = {
     pdfColOrig: 'Original',
     pdfColTrans: 'Translation',
     pdfFormula: 'Formula (kept as original)',
+    pdfFigure: 'Figure/table (kept as original)',
     pdfFileAccess: 'Local file links require "Allow access to file URLs" for this extension on the extensions page (chrome://extensions). Enable it and retry, or just drag the PDF into the dashed box above.'
   },
 
@@ -336,6 +339,7 @@ const UI_STRINGS = {
     pdfColOrig: '原文',
     pdfColTrans: '訳文',
     pdfFormula: '数式（原文のまま）',
+    pdfFigure: '図表（原文のまま）',
     pdfFileAccess: 'ローカルファイルのリンクは、拡張機能管理ページ（chrome://extensions）で本拡張機能の「ファイルの URL へのアクセスを許可する」を有効にしてから再試行してください。PDF ファイルを上の点線枠に直接ドラッグしても読み込めます。'
   },
 
@@ -420,6 +424,7 @@ const UI_STRINGS = {
     pdfColOrig: '원문',
     pdfColTrans: '번역',
     pdfFormula: '수식 (원본 유지)',
+    pdfFigure: '그림/표 (원본 유지)',
     pdfFileAccess: '로컬 파일 링크는 확장 프로그램 관리 페이지(chrome://extensions)에서 이 확장 프로그램의 "파일 URL에 대한 액세스 허용"을 켠 후 다시 시도하세요. PDF 파일을 위 점선 상자에 바로 끌어다 놓아도 됩니다.'
   },
 
@@ -504,6 +509,7 @@ const UI_STRINGS = {
     pdfColOrig: 'Original',
     pdfColTrans: 'Traducción',
     pdfFormula: 'Fórmula (original)',
+    pdfFigure: 'Figura/tabla (original)',
     pdfFileAccess: 'Los enlaces de archivos locales requieren activar "Permitir acceso a URLs de archivos" para esta extensión en la página de extensiones (chrome://extensions). Actívalo y reintenta, o arrastra el PDF al cuadro discontinuo de arriba.'
   },
 
@@ -588,6 +594,7 @@ const UI_STRINGS = {
     pdfColOrig: 'Original',
     pdfColTrans: 'Traduction',
     pdfFormula: 'Formule (originale)',
+    pdfFigure: 'Figure/tableau (original)',
     pdfFileAccess: 'Les liens de fichiers locaux nécessitent d’activer « Autoriser l’accès aux URL de fichier » pour cette extension dans la page des extensions (chrome://extensions). Activez-le puis réessayez, ou glissez simplement le PDF dans le cadre en pointillés ci-dessus.'
   },
 
@@ -672,6 +679,7 @@ const UI_STRINGS = {
     pdfColOrig: 'Original',
     pdfColTrans: 'Übersetzung',
     pdfFormula: 'Formel (Original)',
+    pdfFigure: 'Abbildung/Tabelle (Original)',
     pdfFileAccess: 'Lokale Dateilinks erfordern, dass auf der Erweiterungsseite (chrome://extensions) „Zugriff auf Datei-URLs zulassen“ für diese Erweiterung aktiviert ist. Aktivieren Sie es und versuchen Sie es erneut, oder ziehen Sie die PDF-Datei einfach in das gestrichelte Feld oben.'
   },
 
@@ -756,6 +764,7 @@ const UI_STRINGS = {
     pdfColOrig: 'Originale',
     pdfColTrans: 'Traduzione',
     pdfFormula: 'Formula (originale)',
+    pdfFigure: 'Figura/tabella (originale)',
     pdfFileAccess: 'I link a file locali richiedono di attivare "Consenti accesso agli URL dei file" per questa estensione nella pagina delle estensioni (chrome://extensions). Attivalo e riprova, oppure trascina il PDF nel riquadro tratteggiato in alto.'
   },
 
@@ -840,6 +849,7 @@ const UI_STRINGS = {
     pdfColOrig: 'Original',
     pdfColTrans: 'Tradução',
     pdfFormula: 'Fórmula (original)',
+    pdfFigure: 'Figura/tabela (original)',
     pdfFileAccess: 'Links de arquivos locais exigem ativar "Permitir acesso a URLs de arquivo" para esta extensão na página de extensões (chrome://extensions). Ative e tente novamente, ou arraste o PDF para a caixa tracejada acima.'
   },
 
@@ -924,6 +934,7 @@ const UI_STRINGS = {
     pdfColOrig: 'Оригинал',
     pdfColTrans: 'Перевод',
     pdfFormula: 'Формула (оригинал)',
+    pdfFigure: 'Рис./таблица (оригинал)',
     pdfFileAccess: 'Для ссылок на локальные файлы нужно включить «Разрешить доступ к URL-адресам файлов» для этого расширения на странице расширений (chrome://extensions). Включите и повторите попытку или просто перетащите PDF в пунктирную рамку выше.'
   },
 
@@ -1008,6 +1019,7 @@ const UI_STRINGS = {
     pdfColOrig: 'الأصل',
     pdfColTrans: 'الترجمة',
     pdfFormula: 'صيغة (الأصل)',
+    pdfFigure: 'شكل/جدول (الأصل)',
     pdfFileAccess: 'تتطلب روابط الملفات المحلية تفعيل «السماح بالوصول إلى عناوين URL للملفات» لهذه الإضافة في صفحة الإضافات (chrome://extensions). فعّله ثم أعد المحاولة، أو اسحب ملف PDF مباشرة إلى الإطار المتقطع أعلاه.'
   },
 
@@ -1092,6 +1104,7 @@ const UI_STRINGS = {
     pdfColOrig: 'ต้นฉบับ',
     pdfColTrans: 'คำแปล',
     pdfFormula: 'สูตร (ต้นฉบับ)',
+    pdfFigure: 'รูป/ตาราง (ต้นฉบับ)',
     pdfFileAccess: 'ลิงก์ไฟล์ในเครื่องต้องเปิด "อนุญาตให้เข้าถึง URL ของไฟล์" สำหรับส่วนขยายนี้ในหน้าจัดการส่วนขยาย (chrome://extensions) ก่อนแล้วลองใหม่ หรือลากไฟล์ PDF ไปวางในกรอบเส้นประด้านบนโดยตรงก็ได้'
   },
 
@@ -1176,6 +1189,7 @@ const UI_STRINGS = {
     pdfColOrig: 'Nguyên bản',
     pdfColTrans: 'Bản dịch',
     pdfFormula: 'Công thức (giữ nguyên)',
+    pdfFigure: 'Hình/bảng (giữ nguyên)',
     pdfFileAccess: 'Liên kết tệp cục bộ cần bật "Cho phép truy cập URL tệp" cho tiện ích này trong trang quản lý tiện ích (chrome://extensions) rồi thử lại; hoặc kéo thả tệp PDF trực tiếp vào khung nét đứt phía trên.'
   },
 
@@ -1260,6 +1274,7 @@ const UI_STRINGS = {
     pdfColOrig: 'Asli',
     pdfColTrans: 'Terjemahan',
     pdfFormula: 'Rumus (asli)',
+    pdfFigure: 'Gambar/tabel (asli)',
     pdfFileAccess: 'Tautan file lokal memerlukan pengaktifan "Izinkan akses ke URL file" untuk ekstensi ini di halaman ekstensi (chrome://extensions). Aktifkan lalu coba lagi, atau seret file PDF langsung ke kotak putus-putus di atas.'
   },
 
@@ -1344,6 +1359,7 @@ const UI_STRINGS = {
     pdfColOrig: 'Asal',
     pdfColTrans: 'Terjemahan',
     pdfFormula: 'Rumus (asal)',
+    pdfFigure: 'Gambar/jadual (asal)',
     pdfFileAccess: 'Pautan fail setempat memerlukan pengaktifan "Benarkan akses kepada URL fail" untuk sambungan ini di halaman sambungan (chrome://extensions). Aktifkan dan cuba lagi, atau seret fail PDF terus ke kotak bergaris putus-putus di atas.'
   }
 };

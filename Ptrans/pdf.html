@@ -77,7 +77,7 @@
     body.trans-only .orig, body.trans-only .cols-head { display: none; }
     body.trans-only .block { grid-template-columns: 1fr; margin-bottom: 14px; }
 
-    /* 公式块：原页裁剪图 + 说明标签，不送翻译；图容器不是 .orig，仅译文视图同样可见 */
+    /* 裁剪块（公式/插图/表格）：原页裁剪图 + 说明标签，不送翻译；图容器不是 .orig，仅译文视图同样可见 */
     .formula-img { min-width: 0; }
     .formula-img canvas { display: block; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
     .formula-img .spinner { display: block; margin: 10px 0; }
@@ -96,8 +96,8 @@
     body.page-view .orig, body.page-view .cols-head .col-orig { display: none; }
     body.page-view .cols-head .col-page { display: block; }
     body.page-view .block { grid-template-columns: 1fr; margin-bottom: 14px; }
-    /* 整页原图已含公式，公式块不再重复显示 */
-    body.page-view .block.formula { display: none; }
+    /* 整页原图已含公式/图表，裁剪块不再重复显示 */
+    body.page-view .block.crop-block { display: none; }
     /* 窄屏回退为上下堆叠，避免两栏过窄 */
     @media (max-width: 720px) {
       .block, .cols-head { grid-template-columns: 1fr; }

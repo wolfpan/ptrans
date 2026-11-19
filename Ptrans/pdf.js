@@ -223,24 +223,175 @@ function extractBlocks(items, page, fontMap = {}) {
     const text = cur.trim();
     // 过滤纯数字/符号（页码、分隔线等），口径同 content.js
     if (text && !/^[\d\s\p{P}]+$/u.test(text)) {
+      const bbox = { minX: st.minX, minY: st.minY, maxX: st.maxX, maxY: st.maxY };
       if (isFormulaStats(st)) {
-        out.push({ page, text, formula: true, bbox: { minX: st.minX, minY: st.minY, maxX: st.maxX, maxY: st.maxY } });
+        out.push({ page, text, formula: true, bbox });
       } else {
-        out.push({ page, text });
+        out.push({ page, text, bbox });
       }
     }
     cur = '';
     st = null;
   };
+  let prevCaption = false;
   for (const line of usable) {
     if (prevY !== null && (prevY - line.y > medianH * 1.6 || cur.length > 1500)) flush();
+    // 图注/表注行强制独立成块：避免与图表内容合并后被区域抑制整块吞掉
+    const isCap = CAPTION_LINE.test(line.text);
+    if (isCap) flush();
     if (!st) st = newStats();
     addLineStats(line);
     cur += (cur ? ' ' : '') + line.text;
     prevY = line.y;
+    // 续行也独立成块（表格行距小，续行否则会并入表体被整块抑制）
+    if (isCap || prevCaption) flush();
+    prevCaption = isCap;
   }
   flush();
   return out;
+}
+
+// ===== 图形区域检测：插图（位图/矢量）与表格 → 原页裁剪保留 =====
+
+// 图注/表注行：强制独立成块，避免与图表内容合并后被区域抑制吞掉
+const CAPTION_LINE = /^(?:Figure|Fig\.?|Table|Tab\.?|图|表)\s*\d+\s*[:：.]/i;
+
+function transformBox(ctm, x0, y0, x1, y1) {
+  const [a, b, c, d, e, f] = ctm;
+  const xs = [a * x0 + c * y0 + e, a * x1 + c * y0 + e, a * x0 + c * y1 + e, a * x1 + c * y1 + e];
+  const ys = [b * x0 + d * y0 + f, b * x1 + d * y0 + f, b * x0 + d * y1 + f, b * x1 + d * y1 + f];
+  return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+}
+
+// 遍历 operator list，CTM 栈追踪图片与路径的页面坐标包围盒。
+// 实体框（图片/填充路径）聚成插图；长细线（表格框线）单独走表格检测。
+function collectGraphicBoxes(ol) {
+  let ctm = [1, 0, 0, 1, 0, 0];
+  const stack = [];
+  const solids = [], rules = [];
+  const add = (box) => {
+    const w = box.maxX - box.minX, h = box.maxY - box.minY;
+    if (h < 3 && w >= 40) rules.push({ ...box, horiz: true });
+    else if (w < 3 && h >= 40) rules.push({ ...box, horiz: false });
+    else if (w >= 3 && h >= 3) solids.push(box);
+  };
+  for (let i = 0; i < ol.fnArray.length; i++) {
+    const fn = ol.fnArray[i], args = ol.argsArray[i];
+    if (fn === pdfjsLib.OPS.save) stack.push(ctm.slice());
+    else if (fn === pdfjsLib.OPS.restore) ctm = stack.pop() || [1, 0, 0, 1, 0, 0];
+    else if (fn === pdfjsLib.OPS.transform) ctm = pdfjsLib.Util.transform(ctm, args);
+    else if (fn === pdfjsLib.OPS.paintImageXObject || fn === pdfjsLib.OPS.paintJpegXObject || fn === pdfjsLib.OPS.paintInlineImageXObject) {
+      add(transformBox(ctm, 0, 0, 1, 1)); // 图片绘制在单位正方形
+    } else if (fn === pdfjsLib.OPS.constructPath) {
+      const bb = args[2]; // 路径自带用户空间 bbox
+      if (bb) add(transformBox(ctm, bb[0], bb[1], bb[2], bb[3]));
+    }
+  }
+  return { solids, rules };
+}
+
+function overlapArea(a, b) {
+  const w = Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX);
+  const h = Math.min(a.maxY, b.maxY) - Math.max(a.minY, b.minY);
+  return w > 0 && h > 0 ? w * h : 0;
+}
+const boxArea = b => (b.maxX - b.minX) * (b.maxY - b.minY);
+
+// 邻近合并（gap 内视为同一图形）；O(n²) 迭代，千级路径框实测可接受
+function clusterBoxes(boxes, gap = 12) {
+  const cs = boxes.map(b => ({ ...b }));
+  let merged = true;
+  while (merged) {
+    merged = false;
+    for (let i = 0; i < cs.length && !merged; i++) {
+      for (let j = i + 1; j < cs.length; j++) {
+        const a = cs[i], b = cs[j];
+        if (a.minX - gap <= b.maxX && b.minX - gap <= a.maxX && a.minY - gap <= b.maxY && b.minY - gap <= a.maxY) {
+          a.minX = Math.min(a.minX, b.minX); a.maxX = Math.max(a.maxX, b.maxX);
+          a.minY = Math.min(a.minY, b.minY); a.maxY = Math.max(a.maxY, b.maxY);
+          cs.splice(j, 1); merged = true; break;
+        }
+      }
+    }
+  }
+  return cs;
+}
+
+function figureRegions(solids, items) {
+  const out = [];
+  for (const c of clusterBoxes(solids)) {
+    const w = c.maxX - c.minX, h = c.maxY - c.minY;
+    if (w < 60 || h < 40) continue;
+    // 文本密度护栏：轮廓化正文（字形全是路径）会聚成大簇，按字符密度排除
+    let chars = 0;
+    for (const it of items) {
+      const x = it.transform[4], y = it.transform[5];
+      if (x >= c.minX && x <= c.maxX && y >= c.minY && y <= c.maxY) chars += (it.str || '').replace(/\s/g, '').length;
+    }
+    if (chars / (w * h) > 1 / 150) continue;
+    out.push({ minX: c.minX - 12, minY: c.minY - 12, maxX: c.maxX + 12, maxY: c.maxY + 12, kind: 'figure' });
+  }
+  return out;
+}
+
+// 表格框线检测：横线按 x 跨度重叠 ≥60% 且 y 距 <250pt 分组；
+// ≥3 横（booktabs）或 2 横 + ≥1 竖才成表，排除页眉页脚单/双线
+function tableRegions(rules) {
+  const horiz = rules.filter(r => r.horiz), vert = rules.filter(r => !r.horiz);
+  const groups = [];
+  for (const r of horiz) {
+    let g = groups.find(g => {
+      const ow = Math.min(g.maxX, r.maxX) - Math.max(g.minX, r.minX);
+      const rw = Math.min(g.maxX - g.minX, r.maxX - r.minX);
+      return ow / rw >= 0.6 && r.minY >= g.minY - 250 && r.maxY <= g.maxY + 250;
+    });
+    if (!g) { g = { minX: r.minX, maxX: r.maxX, minY: r.minY, maxY: r.maxY, h: 1, v: 0 }; groups.push(g); }
+    else { g.minX = Math.min(g.minX, r.minX); g.maxX = Math.max(g.maxX, r.maxX); g.minY = Math.min(g.minY, r.minY); g.maxY = Math.max(g.maxY, r.maxY); g.h++; }
+  }
+  for (const r of vert) {
+    const g = groups.find(g => r.minX >= g.minX - 5 && r.maxX <= g.maxX + 5 && r.minY >= g.minY - 5 && r.maxY <= g.maxY + 5);
+    if (g) g.v++;
+  }
+  return groups.filter(g => (g.h >= 3 || (g.h >= 2 && g.v >= 1)) && g.maxX - g.minX >= 80 && g.maxY - g.minY >= 20)
+    .map(g => ({ minX: g.minX - 6, minY: g.minY - 6, maxX: g.maxX + 6, maxY: g.maxY + 6, kind: 'table' }));
+}
+
+// 区域整合：抑制落入区域的文本块（图内标签/表格单元格），插入裁剪块，按阅读顺序重排。
+// 图注/表注块（含续行）豁免抑制：整页图版聚类可能把图注包进区域，但图注必须保留翻译
+function applyGraphicBlocks(pageBlocks, regions, page) {
+  if (regions.length === 0) return pageBlocks;
+  const isCaption = b => !b.figure && CAPTION_LINE.test(b.text);
+  const captionYs = [];
+  let inCaption = false;
+  for (const b of pageBlocks) { // extractBlocks 输出按阅读顺序（y 降序）
+    if (isCaption(b)) { inCaption = true; captionYs.push(b.bbox); }
+    else if (inCaption) {
+      const last = captionYs[captionYs.length - 1];
+      // 续行两种形态：整页图版里被插图区域深包的图注续行；表注续行贴着表区域上缘。
+      // 表格内容深在区域内部（重叠≈100%），不算续行，仍被抑制
+      const ba = boxArea(b.bbox);
+      const inFigure = regions.some(r => r.kind === 'figure' && overlapArea(b.bbox, r) > 0);
+      const graze = ba > 0 && regions.some(r => { const o = overlapArea(b.bbox, r) / ba; return o > 0 && o < 0.5; });
+      if ((inFigure || graze) && b.bbox.minX >= last.minX - 20 && b.bbox.maxX <= last.maxX + 20 && last.minY - b.bbox.maxY < 25) captionYs.push(b.bbox);
+      else inCaption = false;
+    }
+  }
+  const kept = pageBlocks.filter(b => {
+    if (isCaption(b) || captionYs.includes(b.bbox)) return true;
+    const ba = boxArea(b.bbox);
+    return ba <= 0 || !regions.some(r => overlapArea(b.bbox, r) / ba >= 0.7);
+  });
+  // 区域边缘贴着的图注/表注（含续行）裁进图里会被切字：把区域边界收回到注释外
+  for (const r of regions) {
+    for (const c of captionYs) {
+      if (c.minX >= r.maxX || c.maxX <= r.minX) continue;
+      if (r.maxY - c.minY > 0 && r.maxY - c.minY < 25) r.maxY = c.minY - 2;
+      else if (c.maxY - r.minY > 0 && c.maxY - r.minY < 25) r.minY = c.maxY + 2;
+    }
+  }
+  for (const r of regions) kept.push({ page, text: '', figure: true, kind: r.kind, bbox: { minX: r.minX, minY: r.minY, maxX: r.maxX, maxY: r.maxY } });
+  kept.sort((a, b) => b.bbox.maxY - a.bbox.maxY);
+  return kept;
 }
 
 // ===== 渲染 =====
@@ -293,9 +444,9 @@ function renderDoc() {
     const wrap = document.createElement('div');
     wrap.className = 'block';
     wrap.dataset.page = pageNum;
-    if (block.formula) {
-      // 公式块：原页裁剪图（懒渲染）+ 说明标签，不送翻译，天然完成态
-      wrap.classList.add('formula');
+    if (block.formula || block.figure) {
+      // 公式/插图/表格块：原页裁剪图（懒渲染）+ 说明标签，不送翻译，天然完成态
+      wrap.classList.add('crop-block', block.formula ? 'formula' : 'figure');
       const img = document.createElement('div');
       img.className = 'formula-img';
       const spin = document.createElement('span');
@@ -303,7 +454,7 @@ function renderDoc() {
       img.appendChild(spin);
       const note = document.createElement('p');
       note.className = 'trans formula-note';
-      note.textContent = tt('pdfFormula');
+      note.textContent = tt(block.formula ? 'pdfFormula' : 'pdfFigure');
       wrap.append(img, note);
       pageEl.querySelector('.blocks').appendChild(wrap);
       block.imgEl = img;
@@ -440,16 +591,16 @@ async function loadDocument(source, name) {
       setStatus(tt('pdfParsing', { page: p, total }), { progress: p / total });
       const page = await pdf.getPage(p);
       const content = await page.getTextContent();
-      // 公式检测需要真实字体名：getTextContent 不填充 commonObjs 字体对象，
-      // 有数学信号的页面才跑一次 getOperatorList（纯 prose 页不增加开销）
-      let fontMap = {};
-      if (pageHasMathSignal(content.items)) {
-        try {
-          await page.getOperatorList();
-          fontMap = resolveFontNames(page, content.items);
-        } catch { /* 解析失败退化为符号判据 */ }
-      }
-      const pageBlocks = extractBlocks(content.items, p, fontMap);
+      // operator list 两用：公式检测的字体对象（getTextContent 不填充 commonObjs）
+      // 与插图/表格检测的图形包围盒；解析失败退化为纯文本管线
+      let fontMap = {}, regions = [];
+      try {
+        const ol = await page.getOperatorList();
+        if (pageHasMathSignal(content.items)) fontMap = resolveFontNames(page, content.items);
+        const { solids, rules } = collectGraphicBoxes(ol);
+        regions = [...figureRegions(solids, content.items), ...tableRegions(rules)];
+      } catch { /* 降级：不检测公式字体与图形 */ }
+      const pageBlocks = applyGraphicBlocks(extractBlocks(content.items, p, fontMap), regions, p);
       for (const b of pageBlocks) charCount += b.text.length;
       blocks.push(...pageBlocks);
       page.cleanup();
@@ -582,7 +733,7 @@ document.getElementById('viewBoth').addEventListener('click', () => setView('vie
 document.getElementById('viewTrans').addEventListener('click', () => setView('viewTrans'));
 document.getElementById('viewPage').addEventListener('click', () => setView('viewPage'));
 
-// ===== 懒渲染：原页对照整页原图 / 双语与仅译文的公式裁剪图 =====
+// ===== 懒渲染：原页对照整页原图 / 双语与仅译文的公式与图表裁剪图 =====
 // 接近视口才渲染，串行队列避免 CPU/内存尖峰；canvas 缓存后切回即时
 
 function observeForView() {
@@ -591,13 +742,13 @@ function observeForView() {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
         const n = Number(entry.target.dataset.page);
-        queueRender(entry.target.classList.contains('formula') ? 'formula' : 'page', n);
+        queueRender(entry.target.classList.contains('crop-block') ? 'formula' : 'page', n);
       }
     }, { rootMargin: '300px 0px' });
   }
   pageObserver.disconnect();
-  // 原页对照观察整页；其余视图只需公式块（整页原图不渲染）
-  const sel = document.body.classList.contains('page-view') ? '.page' : '.block.formula';
+  // 原页对照观察整页；其余视图只需裁剪块（整页原图不渲染）
+  const sel = document.body.classList.contains('page-view') ? '.page' : '.block.crop-block';
   for (const el of document.querySelectorAll(sel)) pageObserver.observe(el);
 }
 
@@ -614,7 +765,7 @@ async function drainRenderQueue() {
   while (renderQueue.length > 0) {
     const job = renderQueue.shift();
     if (job.kind === 'page') await renderPageImage(job.n, docGen);
-    else await renderFormulaCrops(job.n, docGen);
+    else await renderCrops(job.n, docGen);
   }
   rendering = false;
 }
@@ -645,10 +796,10 @@ async function renderPageImage(n, gen) {
   }
 }
 
-// 公式裁剪：整页渲染一次，按 bbox 裁出该页每个公式块，丢弃整页 canvas 只留小图。
-// 渲染失败降级为提取文本（与公式检测前行为一致，不空白）
-async function renderFormulaCrops(n, gen) {
-  const targets = blocks.filter(b => b.formula && b.page === n && b.imgEl);
+// 裁剪渲染：整页渲染一次，按 bbox 裁出该页每个公式/插图/表格块，丢弃整页 canvas 只留小图。
+// 渲染失败降级为提取文本（图表块无文本时留空说明，不空白报错）
+async function renderCrops(n, gen) {
+  const targets = blocks.filter(b => (b.formula || b.figure) && b.page === n && b.imgEl);
   if (targets.length === 0 || !pdfDoc) return;
   const showText = (b) => {
     b.imgEl.textContent = '';
@@ -696,7 +847,7 @@ document.getElementById('retranslateBtn').addEventListener('click', async () => 
   uiLang = settings.targetLang || '简体中文';
   applyI18n();
   for (const block of blocks) {
-    if (block.formula) continue; // 公式块是原样裁剪图，无需重译
+    if (block.formula || block.figure) continue; // 裁剪块是原样图，无需重译
     block.done = false;
     block.transEl.textContent = '…';
     block.transEl.classList.add('pending');
