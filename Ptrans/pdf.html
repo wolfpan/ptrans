@@ -50,6 +50,10 @@
     .spinner[hidden] { display: none; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .statusbar .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+    /* 进度条：解析按页、翻译按段推进，避免长任务只有数字看起来像卡死 */
+    .statusbar .progress { flex: 1; min-width: 60px; height: 6px; border-radius: 999px; background: #e8eaee; overflow: hidden; }
+    .statusbar .progress[hidden] { display: none; }
+    .statusbar .progress-fill { display: block; height: 100%; width: 0; background: var(--blue); border-radius: inherit; transition: width .25s ease; }
 
     /* 工具栏 */
     .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -114,6 +118,7 @@
       <span class="spinner" id="statusSpinner"></span>
       <span class="dot" id="statusDot" hidden></span>
       <span id="statusText"></span>
+      <span class="progress" id="statusProgress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><span class="progress-fill" id="statusProgressFill"></span></span>
     </section>
 
     <section class="toolbar" id="toolbar" hidden>

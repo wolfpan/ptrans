@@ -10,6 +10,7 @@ const DEFAULTS = {
 let currentHost = '';
 let currentTabUrl = '';
 let isPdfTab = false; // 当前标签页是 PDF（内置查看器无法注入脚本，改走 PDF 翻译页）
+let isPdfViewer = false; // 当前标签页是本扩展的 PDF 翻译页（pdf.html），主按钮不再新开标签
 let pageLang = null; // 当前页面主语言（内容脚本检测），判不出为 null
 let alwaysSites = [];
 let enabledModels = []; // 勾选启用的模型，供「翻译模型」下拉选择
@@ -123,7 +124,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentTabUrl = (tab && tab.url) || '';
   try { currentHost = currentTabUrl ? new URL(currentTabUrl).hostname : ''; } catch { currentHost = ''; }
-  isPdfTab = /\.pdf([?#]|$)/i.test(currentTabUrl);
+  // 翻译页自身的 ?src=…xxx.pdf 也会命中 .pdf 后缀正则，须先排除，避免被误判为 PDF 源标签
+  isPdfViewer = currentTabUrl.startsWith(chrome.runtime.getURL('pdf.html'));
+  isPdfTab = !isPdfViewer && /\.pdf([?#]|$)/i.test(currentTabUrl);
   // 页面语言检测失败（chrome://、商店页、扩展更新后未刷新的页面）时回退通用文案。
   // 注意：部分浏览器对 PDF 标签页的 sendMessage 不 reject 而是 resolve undefined，
   // 故以「有无有效响应」而非异常作为注入失败的判据
@@ -467,9 +470,19 @@ async function sendToTab(message) {
 }
 
 document.getElementById('translateBtn').addEventListener('click', async () => {
-  // PDF 标签页：内置查看器无法注入翻译脚本，直接带链接跳转 PDF 翻译页
-  if (isPdfTab) {
-    openPdfPage(currentTabUrl);
+  // PDF 翻译页 / PDF 源标签：已有翻译在进行时提示等待（同普通页面的 toastBusy），
+  // 不再新开标签，避免打断或重复正在进行的翻译
+  if (isPdfViewer || isPdfTab) {
+    const busy = await findBusyPdfTab();
+    if (busy) {
+      showPopupToast(busy.parsing
+        ? t(uiLang, 'pdfParsing', { page: busy.page, total: busy.parseTotal })
+        : t(uiLang, 'pdfTranslating', { done: busy.done, total: busy.total }));
+      return;
+    }
+    // PDF 标签页：内置查看器无法注入翻译脚本，直接带链接跳转 PDF 翻译页
+    if (isPdfTab) openPdfPage(currentTabUrl);
+    else window.close();
     return;
   }
   const config = await saveConfig();
@@ -486,6 +499,24 @@ document.getElementById('translateBtn').addEventListener('click', async () => {
 });
 
 // ===== PDF 翻译入口 =====
+
+// 查询正在翻译/解析的 PDF 翻译页：先看当前标签，再查其它翻译页标签
+// （停在上传页时点击主按钮，也能感知别的标签正在翻译，避免误操作）
+async function findBusyPdfTab() {
+  const prefix = chrome.runtime.getURL('pdf.html');
+  const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const all = await chrome.tabs.query({});
+  const candidates = [active, ...all.filter(tb => tb.id !== (active && active.id))]
+    .filter(tb => tb && tb.url && tb.url.startsWith(prefix));
+  for (const tb of candidates) {
+    try {
+      const st = await chrome.tabs.sendMessage(tb.id, { action: 'PDF_STATUS' });
+      if (st && (st.translating || st.parsing)) return st;
+    } catch { /* 翻译页尚未就绪，跳过 */ }
+  }
+  return null;
+}
+
 function openPdfPage(srcUrl) {
   const url = chrome.runtime.getURL('pdf.html') + (srcUrl ? '?src=' + encodeURIComponent(srcUrl) : '');
   chrome.tabs.create({ url });

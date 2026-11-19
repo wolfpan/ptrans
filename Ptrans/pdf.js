@@ -10,6 +10,8 @@ let uiLang = '简体中文';
 
 let blocks = [];        // { page, text, transEl, done }
 let translating = false;
+let parsing = false;    // 文本层解析中（与 translating 一起构成「进行中」状态）
+let parseProgress = null; // { page, total }，供弹窗查询进度
 let loadedName = '';
 
 function tt(key, params) {
@@ -59,12 +61,22 @@ function showToast(msg, isError = true) {
 }
 
 // ===== 状态条 =====
-function setStatus(text, { spinning = true } = {}) {
+// progress 为 0~1 的进度（解析按页、翻译按段）；null 时隐藏进度条（完成/出错）
+function setStatus(text, { spinning = true, progress = null } = {}) {
   const bar = document.getElementById('statusBar');
   bar.hidden = false;
   document.getElementById('statusSpinner').hidden = !spinning;
   document.getElementById('statusDot').hidden = spinning;
   document.getElementById('statusText').textContent = text;
+  const track = document.getElementById('statusProgress');
+  if (progress === null) {
+    track.hidden = true;
+  } else {
+    const pct = Math.round(Math.max(0, Math.min(1, progress)) * 100);
+    track.hidden = false;
+    document.getElementById('statusProgressFill').style.width = pct + '%';
+    track.setAttribute('aria-valuenow', String(pct));
+  }
 }
 
 function hideStatus() {
@@ -219,7 +231,7 @@ async function translateAll() {
   let doneBlocks = blocks.filter(b => b.done).length;
   let firstError = null;
 
-  setStatus(tt('pdfTranslating', { done: doneBlocks, total: blocks.length }));
+  setStatus(tt('pdfTranslating', { done: doneBlocks, total: blocks.length }), { progress: doneBlocks / blocks.length });
 
   async function worker() {
     while (index < batches.length) {
@@ -244,7 +256,7 @@ async function translateAll() {
         firstError = firstError || err.message;
       } finally {
         doneBatches++;
-        setStatus(tt('pdfTranslating', { done: doneBlocks, total: blocks.length }));
+        setStatus(tt('pdfTranslating', { done: doneBlocks, total: blocks.length }), { progress: doneBlocks / blocks.length });
       }
     }
   }
@@ -274,13 +286,17 @@ function resetToInput() {
 async function loadDocument(source, name) {
   resetToInput();
   document.getElementById('inputCard').hidden = true;
-  setStatus(tt('pdfParsing', { page: 0, total: '?' }));
+  parsing = true;
+  parseProgress = { page: 0, total: '?' };
+  setStatus(tt('pdfParsing', { page: 0, total: '?' }), { progress: 0 });
   loadedName = name;
 
   let pdf;
   try {
     pdf = await pdfjsLib.getDocument(source).promise;
   } catch (err) {
+    parsing = false;
+    parseProgress = null;
     resetToInput();
     const msg = err && err.name === 'PasswordException'
       ? tt('pdfPassword')
@@ -293,7 +309,8 @@ async function loadDocument(source, name) {
     const total = pdf.numPages;
     let charCount = 0;
     for (let p = 1; p <= total; p++) {
-      setStatus(tt('pdfParsing', { page: p, total }));
+      parseProgress = { page: p, total };
+      setStatus(tt('pdfParsing', { page: p, total }), { progress: p / total });
       const page = await pdf.getPage(p);
       const content = await page.getTextContent();
       const pageBlocks = extractBlocks(content.items, p);
@@ -301,6 +318,8 @@ async function loadDocument(source, name) {
       blocks.push(...pageBlocks);
       page.cleanup();
     }
+    parsing = false;
+    parseProgress = null;
 
     // 全文几乎没有文本层 → 扫描版（纯图片），明确告知而不是静默空白
     if (charCount < 40) {
@@ -322,6 +341,8 @@ async function loadDocument(source, name) {
     if (blocks.length === 0) resetToInput();
     else hideStatus();
   } finally {
+    parsing = false;
+    parseProgress = null;
     pdf.destroy();
   }
 }
@@ -366,6 +387,20 @@ async function loadUrl(url) {
     btn.disabled = false;
   }
 }
+
+// 弹窗查询翻译页状态：进行中时弹窗提示等待（同普通页面），而不是新开标签打断翻译
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.action === 'PDF_STATUS') {
+    return {
+      translating,
+      parsing,
+      done: blocks.filter(b => b.done).length,
+      total: blocks.length,
+      page: parseProgress ? parseProgress.page : 0,
+      parseTotal: parseProgress ? parseProgress.total : '?'
+    };
+  }
+});
 
 // ===== 事件绑定与初始化 =====
 
