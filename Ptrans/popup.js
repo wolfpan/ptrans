@@ -135,7 +135,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     resp = await sendToTab({ action: 'DETECT_LANG' });
   } catch { resp = null; }
   pageLang = (resp && resp.lang) || null;
-  if (!resp && !isPdfTab && /^(https?|file):/i.test(currentTabUrl)) {
+  // 商店等受保护页面无法注入内容脚本，且跨域 HEAD 探测会被 CORS 拦截、
+  // 在扩展错误页留下记录；这类页面不可能是 PDF，直接跳过探测
+  const protectedPage = /(^|\.)(chromewebstore\.google\.com|chrome\.google\.com|accounts\.google\.com)$/i.test(currentHost);
+  if (!resp && !isPdfTab && !protectedPage && /^(https?|file):/i.test(currentTabUrl)) {
     // 内容脚本无响应也可能是因为当前页是 PDF（内置查看器无法注入脚本）。
     // URL 不带 .pdf 后缀时（如 arxiv.org/pdf/xxxx），向该地址发一次 HEAD 请求按 Content-Type 确认
     try {
