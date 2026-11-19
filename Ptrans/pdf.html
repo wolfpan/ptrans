@@ -19,11 +19,10 @@
     * { box-sizing: border-box; }
     body { margin: 0; background: #f5f6f8; color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 14px; }
 
-    /* 顶栏 */
-    .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px; padding: 12px 20px; background: #fff; border-bottom: 1px solid var(--border); }
+    /* 顶栏：整合模式切换 / 重新翻译 / 换文件 / 状态进度条，窄屏自动换行 */
+    .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; padding: 10px 20px; background: #fff; border-bottom: 1px solid var(--border); }
     .logo { width: 22px; height: 22px; }
     .title { font-size: 15px; font-weight: 700; }
-    .settings-hint { margin-inline-start: auto; font-size: 12px; color: var(--faint); }
 
     main { max-width: 1200px; margin: 0 auto; padding: 24px 20px 80px; }
 
@@ -43,20 +42,20 @@
     .primary-sm:disabled { opacity: .6; cursor: default; }
     .hint { margin: 14px 2px 0; font-size: 12px; color: var(--faint); }
 
-    /* 状态条 */
-    .statusbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 10px 16px; background: #fff; border: 1px solid var(--border); border-radius: 12px; font-size: 13px; color: var(--sub); }
-    .statusbar[hidden] { display: none; }
+    /* 状态组（顶栏内）：spinner/状态点 + 文案 + 进度条，占满剩余宽度 */
+    .top-status { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 220px; font-size: 13px; color: var(--sub); }
+    .top-status[hidden] { display: none; }
     .spinner { flex: none; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .8s linear infinite; }
     .spinner[hidden] { display: none; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .statusbar .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+    .top-status .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
     /* 进度条：解析按页、翻译按段推进，避免长任务只有数字看起来像卡死 */
-    .statusbar .progress { flex: 1; min-width: 60px; height: 6px; border-radius: 999px; background: #e8eaee; overflow: hidden; }
-    .statusbar .progress[hidden] { display: none; }
-    .statusbar .progress-fill { display: block; height: 100%; width: 0; background: var(--blue); border-radius: inherit; transition: width .25s ease; }
+    .top-status .progress { flex: 1; min-width: 60px; height: 6px; border-radius: 999px; background: #e8eaee; overflow: hidden; }
+    .top-status .progress[hidden] { display: none; }
+    .top-status .progress-fill { display: block; height: 100%; width: 0; background: var(--blue); border-radius: inherit; transition: width .25s ease; }
 
-    /* 工具栏 */
-    .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    /* 工具组（顶栏内）：模式切换 + 重新翻译 / 换文件 */
+    .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .toolbar[hidden] { display: none; }
     .seg { display: inline-flex; padding: 3px; background: #e8eaee; border-radius: 999px; }
     .seg-btn { border: none; background: transparent; padding: 6px 14px; border-radius: 999px; font: inherit; font-size: 12px; font-weight: 600; color: var(--sub); cursor: pointer; }
@@ -82,8 +81,9 @@
     .page-img { display: none; }
     .cols-head .col-page { display: none; }
     body.page-view .page-body { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 28px; align-items: start; }
-    body.page-view .page-img { display: block; position: sticky; top: 70px; max-height: calc(100vh - 100px); border: 1px solid var(--border); border-radius: 12px; background: #fff; overflow: hidden; }
-    body.page-view .page-img canvas { display: block; width: 100%; height: auto; max-height: calc(100vh - 100px); object-fit: contain; object-position: top center; }
+    /* --topbar-h 由 pdf.js 按顶栏实际高度写入（换行/显隐会改变高度） */
+    body.page-view .page-img { display: block; position: sticky; top: calc(var(--topbar-h, 54px) + 12px); max-height: calc(100vh - var(--topbar-h, 54px) - 24px); border: 1px solid var(--border); border-radius: 12px; background: #fff; overflow: hidden; }
+    body.page-view .page-img canvas { display: block; width: 100%; height: auto; max-height: calc(100vh - var(--topbar-h, 54px) - 24px); object-fit: contain; object-position: top center; }
     body.page-view .page-img .spinner { display: block; margin: 24px auto; }
     body.page-view .img-error { display: block; padding: 12px; font-size: 12px; color: #dc2626; word-break: break-word; }
     body.page-view .orig, body.page-view .cols-head .col-orig { display: none; }
@@ -108,10 +108,26 @@
   </style>
 </head>
 <body>
-  <header class="topbar">
+  <header class="topbar" id="topbar">
     <img class="logo" src="icons/icon32.png" alt="">
     <span class="title" data-i18n="pdfTitle">PDF 文档翻译</span>
-    <span class="settings-hint" id="settingsHint"></span>
+    <div class="toolbar" id="toolbar" hidden>
+      <div class="seg" role="group">
+        <button type="button" class="seg-btn active" id="viewBoth" data-i18n="pdfViewBoth">双语对照</button>
+        <button type="button" class="seg-btn" id="viewPage" data-i18n="pdfViewPage">原页对照</button>
+        <button type="button" class="seg-btn" id="viewTrans" data-i18n="pdfViewTrans">仅译文</button>
+      </div>
+      <div class="toolbar-actions">
+        <button type="button" class="ghost" id="retranslateBtn" data-i18n="pdfRetranslate">重新翻译</button>
+        <button type="button" class="ghost" id="newFileBtn" data-i18n="pdfNewFile">换一个文件</button>
+      </div>
+    </div>
+    <div class="top-status" id="statusBar" hidden>
+      <span class="spinner" id="statusSpinner"></span>
+      <span class="dot" id="statusDot" hidden></span>
+      <span id="statusText"></span>
+      <span class="progress" id="statusProgress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><span class="progress-fill" id="statusProgressFill"></span></span>
+    </div>
   </header>
 
   <main>
@@ -127,25 +143,6 @@
         <button type="button" class="primary-sm" id="loadUrlBtn" data-i18n="pdfLoad">加载链接</button>
       </div>
       <p class="hint" data-i18n="pdfUsesSettings">沿用扩展弹窗中的 API、目标语言与风格设置</p>
-    </section>
-
-    <section class="statusbar" id="statusBar" hidden>
-      <span class="spinner" id="statusSpinner"></span>
-      <span class="dot" id="statusDot" hidden></span>
-      <span id="statusText"></span>
-      <span class="progress" id="statusProgress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><span class="progress-fill" id="statusProgressFill"></span></span>
-    </section>
-
-    <section class="toolbar" id="toolbar" hidden>
-      <div class="seg" role="group">
-        <button type="button" class="seg-btn active" id="viewBoth" data-i18n="pdfViewBoth">双语对照</button>
-        <button type="button" class="seg-btn" id="viewPage" data-i18n="pdfViewPage">原页对照</button>
-        <button type="button" class="seg-btn" id="viewTrans" data-i18n="pdfViewTrans">仅译文</button>
-      </div>
-      <div class="toolbar-actions">
-        <button type="button" class="ghost" id="retranslateBtn" data-i18n="pdfRetranslate">重新翻译</button>
-        <button type="button" class="ghost" id="newFileBtn" data-i18n="pdfNewFile">换一个文件</button>
-      </div>
     </section>
 
     <article id="doc"></article>

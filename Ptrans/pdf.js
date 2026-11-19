@@ -46,13 +46,6 @@ function applyI18n() {
   for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(uiLang, el.dataset.i18n);
   for (const el of document.querySelectorAll('[data-i18n-placeholder]')) el.placeholder = t(uiLang, el.dataset.i18nPlaceholder);
   document.title = t(uiLang, 'pdfTitle');
-  renderSettingsHint();
-}
-
-function renderSettingsHint() {
-  const lang = settings.targetLang || '简体中文';
-  const model = settings.model || '—';
-  document.getElementById('settingsHint').textContent = `${lang} · ${model}`;
 }
 
 // ===== 提示条 =====
@@ -560,10 +553,14 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes.targetLang) {
     uiLang = settings.targetLang || '简体中文';
     applyI18n();
-  } else {
-    renderSettingsHint();
   }
 });
+
+// 顶栏高度随内容显隐/窄屏换行变化，原页对照的 sticky 偏移跟随实际高度
+const topbarEl = document.getElementById('topbar');
+new ResizeObserver(() => {
+  document.documentElement.style.setProperty('--topbar-h', topbarEl.offsetHeight + 'px');
+}).observe(topbarEl);
 
 (async () => {
   settings = await chrome.storage.local.get(SETTINGS_KEYS);
