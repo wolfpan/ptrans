@@ -86,6 +86,17 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     .field-hint { font-size: 11px; color: var(--faint); line-height: 1.5; word-break: break-all; }
     .field-hint.error { color: #dc2626; }
+    /* 抽屉底栏：左分享右版本（RTL 自动镜像） */
+    .drawer-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+    .share-link { display: inline-flex; align-items: center; gap: 4px; border: none; background: transparent; padding: 0; font-family: inherit; font-size: 11px; color: var(--faint); cursor: pointer; }
+    .share-link:hover { color: var(--blue); text-decoration: underline; }
+    .version { font-size: 11px; color: var(--faint); }
+
+    /* 弹窗提示条：与页面端 toast 同一设计语言（白圆角卡片 + 状态点） */
+    .popup-toast { position: fixed; bottom: 12px; inset-inline: 14px; margin-inline: auto; width: fit-content; max-width: calc(100% - 28px); z-index: 100; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fff; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 24px rgba(17, 24, 39, .12); font-size: 12px; }
+    .popup-toast[hidden] { display: none; }
+    .popup-toast .dot.error { background: #dc2626; }
+    .popup-toast span:last-child { min-width: 0; word-break: break-all; }
 
     /* 模型勾选列表 */
     .model-list { max-height: 180px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: #f9fafb; padding: 4px; }
@@ -184,7 +195,17 @@
       </div>
       <span class="field-hint" id="modelHint">填写地址与密钥后，自动从 API 获取可用模型</span>
     </div>
+    <div class="drawer-foot">
+      <button type="button" class="share-link" id="shareBtn">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="m15.41 6.51-6.82 3.98"/></svg>
+        <span data-i18n="share">分享</span>
+      </button>
+      <span class="version" id="versionLabel"></span>
+    </div>
   </details>
+  <div class="popup-toast" id="popupToast" role="status" aria-live="polite" hidden>
+    <span class="dot ready"></span><span id="popupToastText"></span>
+  </div>
   <script src="i18n.js"></script>
   <script src="popup.js"></script>
 </body>

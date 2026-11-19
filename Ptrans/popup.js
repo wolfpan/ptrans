@@ -14,12 +14,13 @@ let enabledModels = []; // 勾选启用的模型，供「翻译模型」下拉�
 let manualModels = []; // 手动添加的模型，API 列表获取成功后不被自动移除
 let fetchedModels = []; // 最近一次从 API 获取到的完整模型列表
 
-// 目标语言与风格：value 为提示词使用的语言本名/风格键，显示文本由 i18n.js 按界面语言生成
+// 目标语言与风格：value 为提示词使用的语言本名/风格键
+// 目标语言选项用各语言的本名（endonym）显示，不随界面语言翻译；风格文案由 i18n.js 按界面语言生成
 const LANG_VALUES = ['简体中文', '繁體中文', 'English', '日本語', '한국어', 'Español', 'Français', 'Deutsch', 'Italiano', 'Português', 'Русский', 'العربية', 'ไทย', 'Tiếng Việt', 'Bahasa Indonesia', 'Bahasa Melayu'];
 const STYLE_VALUES = ['strict', 'balanced', 'elegant'];
 
-function langItems(lang) {
-  return LANG_VALUES.map(value => ({ value, label: langLabel(lang, value) }));
+function langItems() {
+  return LANG_VALUES.map(value => ({ value, label: value }));
 }
 
 function styleItems(lang) {
@@ -46,11 +47,18 @@ function applyI18n(lang) {
     el.dataset.placeholder = text; // syncDrop 的回退文本与之同源
   }
   // 重建下拉选项（value 不变，选中态保留）
-  setDropItems('targetLang', langItems(lang));
+  setDropItems('targetLang', langItems());
   setDropItems('styleMode', styleItems(lang));
   renderSiteHost();
   renderAutoLangLabel();
   renderModelHint();
+  renderVersion();
+}
+
+// 版本号取自 manifest，展开 API 抽屉时显示在右下角
+function renderVersion() {
+  document.getElementById('versionLabel').textContent =
+    t(uiLang, 'version', { version: chrome.runtime.getManifest().version });
 }
 
 function renderSiteHost() {
@@ -72,7 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('baseUrl').value = data.baseUrl || DEFAULTS.baseUrl;
   document.getElementById('apiKey').value = data.apiKey || '';
   uiLang = data.targetLang || DEFAULTS.targetLang;
-  setupDrop('targetLang', langItems(uiLang), value => { saveConfig(); applyI18n(value); });
+  setupDrop('targetLang', langItems(), value => { saveConfig(); applyI18n(value); });
   setupDrop('styleMode', styleItems(uiLang), saveConfig);
   setupDrop('model', [], saveConfig);
   setVal('targetLang', uiLang);
@@ -463,3 +471,38 @@ document.getElementById('restoreBtn').addEventListener('click', async () => {
     alert(t(uiLang, 'errRestore', { error: err.message }));
   }
 });
+
+// ===== 分享：复制 Chrome 商店链接 =====
+const STORE_URL = 'https://chromewebstore.google.com/detail/oiheeklecbofdocnfdbellakbpiphijp';
+
+document.getElementById('shareBtn').addEventListener('click', async () => {
+  let ok = false;
+  try { await navigator.clipboard.writeText(STORE_URL); ok = true; }
+  catch { ok = legacyCopy(STORE_URL); }
+  showPopupToast(ok ? t(uiLang, 'shareCopied') : t(uiLang, 'shareFailed', { url: STORE_URL }), !ok);
+});
+
+// 剪贴板 API 不可用时的兜底：隐藏 textarea + execCommand
+function legacyCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;opacity:0;';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch { /* 忽略，走失败提示 */ }
+  ta.remove();
+  return ok;
+}
+
+let popupToastTimer = null;
+function showPopupToast(msg, isError = false) {
+  const toast = document.getElementById('popupToast');
+  document.getElementById('popupToastText').textContent = msg;
+  const dot = toast.querySelector('.dot');
+  dot.classList.toggle('ready', !isError);
+  dot.classList.toggle('error', isError);
+  toast.hidden = false;
+  clearTimeout(popupToastTimer);
+  popupToastTimer = setTimeout(() => { toast.hidden = true; }, 2500);
+}

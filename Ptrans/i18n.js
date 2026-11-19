@@ -51,6 +51,10 @@ const UI_STRINGS = {
     toastFailed: '翻译失败：{error}\n（已完成 {done}/{total} 批）',
     toastDone: '翻译完成：{count} 段文本',
     toastRestored: '已还原原文',
+    version: '版本 {version}',
+    share: '分享',
+    shareCopied: '扩展链接已复制到剪贴板',
+    shareFailed: '复制失败，请手动复制：{url}',
     toastNeedConfig: '请先在扩展弹窗的「API 设置」中填写服务地址与模型名称。',
     toastHoverFailed: '悬停翻译失败：{error}',
     errBackend: '后台返回异常'
@@ -104,6 +108,10 @@ const UI_STRINGS = {
     toastFailed: '翻譯失敗：{error}\n（已完成 {done}/{total} 批）',
     toastDone: '翻譯完成：{count} 段文字',
     toastRestored: '已還原原文',
+    version: '版本 {version}',
+    share: '分享',
+    shareCopied: '擴充功能連結已複製到剪貼簿',
+    shareFailed: '複製失敗，請手動複製：{url}',
     toastNeedConfig: '請先在擴充功能彈出視窗的「API 設定」中填寫服務位址與模型名稱。',
     toastHoverFailed: '懸停翻譯失敗：{error}',
     errBackend: '背景回應異常'
@@ -157,6 +165,10 @@ const UI_STRINGS = {
     toastFailed: 'Translation failed: {error}\n({done}/{total} batches completed)',
     toastDone: 'Translation complete: {count} text segments',
     toastRestored: 'Original text restored',
+    version: 'Version {version}',
+    share: 'Share',
+    shareCopied: 'Extension link copied to clipboard',
+    shareFailed: 'Copy failed. Copy manually: {url}',
     toastNeedConfig: 'Please set the API URL and a model in the extension popup (API Settings) first.',
     toastHoverFailed: 'Hover translation failed: {error}',
     errBackend: 'Unexpected response from background'
@@ -210,6 +222,10 @@ const UI_STRINGS = {
     toastFailed: '翻訳に失敗：{error}\n（{done}/{total} バッチ完了）',
     toastDone: '翻訳完了：{count} 件のテキスト',
     toastRestored: '原文に戻しました',
+    version: 'バージョン {version}',
+    share: '共有',
+    shareCopied: '拡張機能のリンクをクリップボードにコピーしました',
+    shareFailed: 'コピーに失敗しました。手動でコピーしてください：{url}',
     toastNeedConfig: '先に拡張機能のポップアップ「API 設定」でサービス URL とモデル名を設定してください。',
     toastHoverFailed: 'ホバー翻訳に失敗：{error}',
     errBackend: 'バックグラウンドから異常な応答'
@@ -263,6 +279,10 @@ const UI_STRINGS = {
     toastFailed: '번역 실패: {error}\n({done}/{total} 배치 완료)',
     toastDone: '번역 완료: 텍스트 {count}개',
     toastRestored: '원문을 복원했습니다',
+    version: '버전 {version}',
+    share: '공유',
+    shareCopied: '확장 프로그램 링크가 클립보드에 복사되었습니다',
+    shareFailed: '복사에 실패했습니다. 직접 복사하세요: {url}',
     toastNeedConfig: "먼저 확장 프로그램 팝업의 'API 설정'에서 서비스 주소와 모델 이름을 입력하세요.",
     toastHoverFailed: '호버 번역 실패: {error}',
     errBackend: '백그라운드 응답 이상'
@@ -316,6 +336,10 @@ const UI_STRINGS = {
     toastFailed: 'Error de traducción: {error}\n({done}/{total} lotes completados)',
     toastDone: 'Traducción completada: {count} segmentos de texto',
     toastRestored: 'Texto original restaurado',
+    version: 'Versión {version}',
+    share: 'Compartir',
+    shareCopied: 'Enlace de la extensión copiado al portapapeles',
+    shareFailed: 'Error al copiar. Copia manualmente: {url}',
     toastNeedConfig: 'Primero configura la URL del servicio y un modelo en «Ajustes de API» del popup de la extensión.',
     toastHoverFailed: 'Error al traducir al pasar el cursor: {error}',
     errBackend: 'Respuesta anómala del proceso en segundo plano'
@@ -369,6 +393,10 @@ const UI_STRINGS = {
     toastFailed: 'Échec de la traduction : {error}\n({done}/{total} lots terminés)',
     toastDone: 'Traduction terminée : {count} segments de texte',
     toastRestored: 'Texte original rétabli',
+    version: 'Version {version}',
+    share: 'Partager',
+    shareCopied: "Lien de l'extension copié dans le presse-papiers",
+    shareFailed: 'Échec de la copie. Copiez manuellement : {url}',
     toastNeedConfig: "Renseignez d'abord l'URL du service et un modèle dans « Paramètres API » de la popup de l'extension.",
     toastHoverFailed: 'Échec de la traduction au survol : {error}',
     errBackend: "Réponse anormale du processus d'arrière-plan"
@@ -422,6 +450,10 @@ const UI_STRINGS = {
     toastFailed: 'Übersetzung fehlgeschlagen: {error}\n({done}/{total} Blöcke abgeschlossen)',
     toastDone: 'Übersetzung abgeschlossen: {count} Textabschnitte',
     toastRestored: 'Originaltext wiederhergestellt',
+    version: 'Version {version}',
+    share: 'Teilen',
+    shareCopied: 'Link zur Erweiterung in die Zwischenablage kopiert',
+    shareFailed: 'Kopieren fehlgeschlagen. Bitte manuell kopieren: {url}',
     toastNeedConfig: 'Bitte zuerst im Erweiterungs-Popup unter „API-Einstellungen“ Dienst-URL und Modellname eintragen.',
     toastHoverFailed: 'Hover-Übersetzung fehlgeschlagen: {error}',
     errBackend: 'Unerwartete Antwort aus dem Hintergrund'
@@ -475,6 +507,10 @@ const UI_STRINGS = {
     toastFailed: 'Traduzione non riuscita: {error}\n({done}/{total} blocchi completati)',
     toastDone: 'Traduzione completata: {count} segmenti di testo',
     toastRestored: 'Testo originale ripristinato',
+    version: 'Versione {version}',
+    share: 'Condividi',
+    shareCopied: "Link dell'estensione copiato negli appunti",
+    shareFailed: 'Copia non riuscita. Copia manualmente: {url}',
     toastNeedConfig: "Imposta prima l'URL del servizio e un modello in «Impostazioni API» del popup dell'estensione.",
     toastHoverFailed: 'Traduzione al passaggio del mouse non riuscita: {error}',
     errBackend: 'Risposta anomala dal processo in background'
@@ -528,6 +564,10 @@ const UI_STRINGS = {
     toastFailed: 'Falha na tradução: {error}\n({done}/{total} lotes concluídos)',
     toastDone: 'Tradução concluída: {count} segmentos de texto',
     toastRestored: 'Texto original restaurado',
+    version: 'Versão {version}',
+    share: 'Compartilhar',
+    shareCopied: 'Link da extensão copiado para a área de transferência',
+    shareFailed: 'Falha ao copiar. Copie manualmente: {url}',
     toastNeedConfig: 'Primeiro defina a URL do serviço e um modelo em «Configurações da API» no popup da extensão.',
     toastHoverFailed: 'Falha na tradução ao passar o cursor: {error}',
     errBackend: 'Resposta anormal do processo em segundo plano'
@@ -581,6 +621,10 @@ const UI_STRINGS = {
     toastFailed: 'Ошибка перевода: {error}\n(выполнено пакетов: {done}/{total})',
     toastDone: 'Перевод завершён: сегментов текста — {count}',
     toastRestored: 'Исходный текст восстановлен',
+    version: 'Версия {version}',
+    share: 'Поделиться',
+    shareCopied: 'Ссылка на расширение скопирована в буфер обмена',
+    shareFailed: 'Не удалось скопировать. Скопируйте вручную: {url}',
     toastNeedConfig: 'Сначала укажите URL сервиса и модель в «Настройках API» во всплывающем окне расширения.',
     toastHoverFailed: 'Ошибка перевода при наведении: {error}',
     errBackend: 'Некорректный ответ фонового процесса'
@@ -634,6 +678,10 @@ const UI_STRINGS = {
     toastFailed: 'فشلت الترجمة: {error}\n(اكتملت {done}/{total} دفعة)',
     toastDone: 'اكتملت الترجمة: {count} مقطع نصي',
     toastRestored: 'تمت استعادة النص الأصلي',
+    version: 'الإصدار {version}',
+    share: 'مشاركة',
+    shareCopied: 'تم نسخ رابط الإضافة إلى الحافظة',
+    shareFailed: 'فشل النسخ. انسخ يدويًا: {url}',
     toastNeedConfig: 'اضبط أولًا عنوان الخدمة واسم النموذج في «إعدادات API» بنافذة الإضافة المنبثقة.',
     toastHoverFailed: 'فشلت الترجمة عند التمرير: {error}',
     errBackend: 'استجابة غير متوقعة من العملية الخلفية'
@@ -687,6 +735,10 @@ const UI_STRINGS = {
     toastFailed: 'แปลล้มเหลว: {error}\n(เสร็จแล้ว {done}/{total} ชุด)',
     toastDone: 'แปลเสร็จแล้ว: {count} ส่วนข้อความ',
     toastRestored: 'คืนข้อความต้นฉบับแล้ว',
+    version: 'เวอร์ชัน {version}',
+    share: 'แชร์',
+    shareCopied: 'คัดลอกลิงก์ส่วนขยายไปยังคลิปบอร์ดแล้ว',
+    shareFailed: 'คัดลอกไม่สำเร็จ โปรดคัดลอกด้วยตนเอง: {url}',
     toastNeedConfig: 'โปรดตั้งค่า URL บริการและชื่อโมเดลใน «การตั้งค่า API» ของป๊อปอัปส่วนขยายก่อน',
     toastHoverFailed: 'แปลเมื่อชี้ล้มเหลว: {error}',
     errBackend: 'การตอบกลับจากเบื้องหลังผิดปกติ'
@@ -740,6 +792,10 @@ const UI_STRINGS = {
     toastFailed: 'Dịch thất bại: {error}\n(đã xong {done}/{total} lô)',
     toastDone: 'Dịch xong: {count} đoạn văn bản',
     toastRestored: 'Đã khôi phục bản gốc',
+    version: 'Phiên bản {version}',
+    share: 'Chia sẻ',
+    shareCopied: 'Đã sao chép liên kết tiện ích vào bộ nhớ tạm',
+    shareFailed: 'Sao chép thất bại. Hãy sao chép thủ công: {url}',
     toastNeedConfig: 'Trước tiên hãy đặt URL dịch vụ và tên mô hình trong «Cài đặt API» ở popup tiện ích.',
     toastHoverFailed: 'Dịch khi di chuột thất bại: {error}',
     errBackend: 'Phản hồi bất thường từ tiến trình nền'
@@ -793,6 +849,10 @@ const UI_STRINGS = {
     toastFailed: 'Terjemahan gagal: {error}\n({done}/{total} batch selesai)',
     toastDone: 'Terjemahan selesai: {count} segmen teks',
     toastRestored: 'Teks asli dipulihkan',
+    version: 'Versi {version}',
+    share: 'Bagikan',
+    shareCopied: 'Tautan ekstensi disalin ke papan klip',
+    shareFailed: 'Gagal menyalin. Salin manual: {url}',
     toastNeedConfig: 'Atur dulu URL layanan dan nama model di «Pengaturan API» pada popup ekstensi.',
     toastHoverFailed: 'Terjemahan saat hover gagal: {error}',
     errBackend: 'Respons tidak wajar dari proses latar'
@@ -846,13 +906,17 @@ const UI_STRINGS = {
     toastFailed: 'Terjemahan gagal: {error}\n({done}/{total} kelompok selesai)',
     toastDone: 'Terjemahan selesai: {count} segmen teks',
     toastRestored: 'Teks asal dipulihkan',
+    version: 'Versi {version}',
+    share: 'Kongsi',
+    shareCopied: 'Pautan sambungan disalin ke papan keratan',
+    shareFailed: 'Gagal menyalin. Salin secara manual: {url}',
     toastNeedConfig: 'Tetapkan dahulu URL perkhidmatan dan nama model dalam «Tetapan API» pada popup sambungan.',
     toastHoverFailed: 'Terjemahan semasa tuding gagal: {error}',
     errBackend: 'Respons luar biasa daripada proses latar'
   }
 };
 
-// 各目标语言在当前界面语言下的显示名（下拉选项用；提示词仍使用语言本名 value）
+// 各语言在当前界面语言下的显示名（自动翻译开关文案用；目标语言下拉选项直接用语言本名）
 const LANG_NAMES = {
   '简体中文': { '简体中文': '简体中文', '繁體中文': '繁体中文', 'English': '英语', '日本語': '日语', '한국어': '韩语', 'Español': '西班牙语', 'Français': '法语', 'Deutsch': '德语', 'Italiano': '意大利语', 'Português': '葡萄牙语', 'Русский': '俄语', 'العربية': '阿拉伯语', 'ไทย': '泰语', 'Tiếng Việt': '越南语', 'Bahasa Indonesia': '印尼语', 'Bahasa Melayu': '马来语' },
   '繁體中文': { '简体中文': '簡體中文', '繁體中文': '繁體中文', 'English': '英語', '日本語': '日語', '한국어': '韓語', 'Español': '西班牙語', 'Français': '法語', 'Deutsch': '德語', 'Italiano': '義大利語', 'Português': '葡萄牙語', 'Русский': '俄語', 'العربية': '阿拉伯語', 'ไทย': '泰語', 'Tiếng Việt': '越南語', 'Bahasa Indonesia': '印尼語', 'Bahasa Melayu': '馬來語' },
@@ -890,7 +954,7 @@ function t(lang, key, params) {
   return text;
 }
 
-// 目标语言在界面语言下的显示名
+// 语言在界面语言下的显示名（自动翻译开关里的页面语言名）
 function langLabel(lang, value) {
   const names = LANG_NAMES[lang] || LANG_NAMES['English'];
   return names[value] !== undefined ? names[value] : value;
