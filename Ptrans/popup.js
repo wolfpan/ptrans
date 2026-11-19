@@ -8,6 +8,8 @@ const DEFAULTS = {
 };
 
 let currentHost = '';
+let currentTabUrl = '';
+let isPdfTab = false; // 当前标签页是 PDF（内置查看器无法注入脚本，改走 PDF 翻译页）
 let pageLang = null; // 当前页面主语言（内容脚本检测），判不出为 null
 let alwaysSites = [];
 let enabledModels = []; // 勾选启用的模型，供「翻译模型」下拉选择
@@ -46,6 +48,8 @@ function applyI18n(lang) {
     el.setAttribute('placeholder', text);
     el.dataset.placeholder = text; // syncDrop 的回退文本与之同源
   }
+  // PDF 标签页上主按钮改为「翻译此 PDF」，点击直达 PDF 翻译页
+  if (isPdfTab) document.getElementById('translateBtn').textContent = t(lang, 'pdfTranslateThis');
   // 重建下拉选项（value 不变，选中态保留）
   setDropItems('targetLang', langItems());
   setDropItems('styleMode', styleItems(lang));
@@ -117,12 +121,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 「始终翻译此网站」按当前标签页的站点记忆
   alwaysSites = Array.isArray(data.alwaysSites) ? data.alwaysSites : [];
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  try { currentHost = tab && tab.url ? new URL(tab.url).hostname : ''; } catch { currentHost = ''; }
-  // 页面语言检测失败（chrome://、商店页、扩展更新后未刷新的页面）时回退通用文案
+  currentTabUrl = (tab && tab.url) || '';
+  try { currentHost = currentTabUrl ? new URL(currentTabUrl).hostname : ''; } catch { currentHost = ''; }
+  isPdfTab = /\.pdf([?#]|$)/i.test(currentTabUrl);
+  // 页面语言检测失败（chrome://、商店页、扩展更新后未刷新的页面）时回退通用文案。
+  // 注意：部分浏览器对 PDF 标签页的 sendMessage 不 reject 而是 resolve undefined，
+  // 故以「有无有效响应」而非异常作为注入失败的判据
+  let resp = null;
   try {
-    const resp = await sendToTab({ action: 'DETECT_LANG' });
-    pageLang = (resp && resp.lang) || null;
-  } catch { pageLang = null; }
+    resp = await sendToTab({ action: 'DETECT_LANG' });
+  } catch { resp = null; }
+  pageLang = (resp && resp.lang) || null;
+  if (!resp && !isPdfTab && /^(https?|file):/i.test(currentTabUrl)) {
+    // 内容脚本无响应也可能是因为当前页是 PDF（内置查看器无法注入脚本）。
+    // URL 不带 .pdf 后缀时（如 arxiv.org/pdf/xxxx），向该地址发一次 HEAD 请求按 Content-Type 确认
+    try {
+      const head = await fetch(currentTabUrl, { method: 'HEAD', credentials: 'include' });
+      isPdfTab = /application\/pdf/i.test(head.headers.get('content-type') || '');
+    } catch { /* 探测失败保持原判定 */ }
+  }
   const siteBox = document.getElementById('alwaysSite');
   if (!currentHost) {
     siteBox.disabled = true;
@@ -450,6 +467,11 @@ async function sendToTab(message) {
 }
 
 document.getElementById('translateBtn').addEventListener('click', async () => {
+  // PDF 标签页：内置查看器无法注入翻译脚本，直接带链接跳转 PDF 翻译页
+  if (isPdfTab) {
+    openPdfPage(currentTabUrl);
+    return;
+  }
   const config = await saveConfig();
   if (!config.baseUrl || !config.model) {
     alert(t(uiLang, 'alertConfig'));
@@ -461,6 +483,17 @@ document.getElementById('translateBtn').addEventListener('click', async () => {
   } catch (err) {
     alert(t(uiLang, 'errConnect', { error: err.message }));
   }
+});
+
+// ===== PDF 翻译入口 =====
+function openPdfPage(srcUrl) {
+  const url = chrome.runtime.getURL('pdf.html') + (srcUrl ? '?src=' + encodeURIComponent(srcUrl) : '');
+  chrome.tabs.create({ url });
+  window.close();
+}
+
+document.getElementById('pdfCard').addEventListener('click', () => {
+  openPdfPage(isPdfTab ? currentTabUrl : '');
 });
 
 document.getElementById('restoreBtn').addEventListener('click', async () => {

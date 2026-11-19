@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PDF Translator</title>
+  <style>
+    :root {
+      --blue: #2563eb;
+      --blue-hover: #1d4ed8;
+      --fill: #f3f4f6;
+      --card: #f7f8fa;
+      --border: #e5e7eb;
+      --text: #111827;
+      --sub: #6b7280;
+      --faint: #9ca3af;
+      --green: #16a34a;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f5f6f8; color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 14px; }
+
+    /* 顶栏 */
+    .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px; padding: 12px 20px; background: #fff; border-bottom: 1px solid var(--border); }
+    .logo { width: 22px; height: 22px; }
+    .title { font-size: 15px; font-weight: 700; }
+    .settings-hint { margin-inline-start: auto; font-size: 12px; color: var(--faint); }
+
+    main { max-width: 1200px; margin: 0 auto; padding: 24px 20px 80px; }
+
+    /* 输入卡片 */
+    .input-card { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: 0 4px 16px rgba(17, 24, 39, .05); }
+    .dropzone { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 40px 20px; border: 2px dashed var(--border); border-radius: 12px; color: var(--sub); cursor: pointer; transition: border-color .15s, background .15s; text-align: center; }
+    .dropzone:hover, .dropzone.dragover { border-color: var(--blue); background: rgba(37, 99, 235, .04); color: var(--blue); }
+    .dropzone svg { color: var(--faint); }
+    .dropzone:hover svg, .dropzone.dragover svg { color: var(--blue); }
+    .or { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--faint); font-size: 12px; }
+    .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+    .url-row { display: flex; gap: 8px; }
+    .url-row input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: #f9fafb; font: inherit; font-size: 13px; color: var(--text); outline: none; }
+    .url-row input:focus { border-color: var(--blue); background: #fff; box-shadow: 0 0 0 2px rgba(37, 99, 235, .15); }
+    .primary-sm { flex: none; padding: 0 18px; border: none; border-radius: 10px; background: var(--blue); color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .primary-sm:hover { background: var(--blue-hover); }
+    .primary-sm:disabled { opacity: .6; cursor: default; }
+    .hint { margin: 14px 2px 0; font-size: 12px; color: var(--faint); }
+
+    /* 状态条 */
+    .statusbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 10px 16px; background: #fff; border: 1px solid var(--border); border-radius: 12px; font-size: 13px; color: var(--sub); }
+    .statusbar[hidden] { display: none; }
+    .spinner { flex: none; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .8s linear infinite; }
+    .spinner[hidden] { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .statusbar .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+
+    /* 工具栏 */
+    .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .toolbar[hidden] { display: none; }
+    .seg { display: inline-flex; padding: 3px; background: #e8eaee; border-radius: 999px; }
+    .seg-btn { border: none; background: transparent; padding: 6px 14px; border-radius: 999px; font: inherit; font-size: 12px; font-weight: 600; color: var(--sub); cursor: pointer; }
+    .seg-btn.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(17, 24, 39, .12); }
+    .toolbar-actions { display: flex; gap: 8px; }
+    .ghost { border: 1px solid var(--border); background: #fff; padding: 6px 12px; border-radius: 8px; font: inherit; font-size: 12px; color: var(--sub); cursor: pointer; }
+    .ghost:hover { background: var(--fill); color: var(--text); }
+    .ghost:disabled { opacity: .6; cursor: default; }
+
+    /* 文档区：每页一张白卡片，段落为「原文 | 译文」左右对照 */
+    .page { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 24px 28px; margin-bottom: 16px; box-shadow: 0 4px 16px rgba(17, 24, 39, .05); }
+    .page-head { margin: 0 0 12px; font-size: 12px; font-weight: 600; color: var(--faint); letter-spacing: .04em; }
+    .cols-head { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 28px; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 600; color: var(--faint); letter-spacing: .06em; }
+    .block { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 28px; align-items: start; margin-bottom: 18px; }
+    .block:last-child { margin-bottom: 0; }
+    .orig { margin: 0; font-size: 13px; line-height: 1.7; color: var(--sub); white-space: pre-wrap; word-break: break-word; }
+    .trans { margin: 0; font-size: 15px; line-height: 1.8; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+    .trans.pending { color: var(--faint); }
+    body.trans-only .orig, body.trans-only .cols-head { display: none; }
+    body.trans-only .block { grid-template-columns: 1fr; margin-bottom: 14px; }
+    /* 窄屏回退为上下堆叠，避免两栏过窄 */
+    @media (max-width: 720px) {
+      .block, .cols-head { grid-template-columns: 1fr; }
+      .cols-head span:last-child { display: none; }
+      .orig { margin-bottom: 6px; }
+    }
+
+    /* 提示条：与弹窗 / 页面端 toast 同一设计语言 */
+    .toast { position: fixed; bottom: 16px; inset-inline: 0; margin-inline: auto; width: fit-content; max-width: min(560px, calc(100% - 32px)); z-index: 100; display: flex; align-items: flex-start; gap: 8px; padding: 10px 14px; background: #fff; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 24px rgba(17, 24, 39, .12); font-size: 13px; line-height: 1.6; }
+    .toast[hidden] { display: none; }
+    .toast .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: var(--green); }
+    .toast .dot.error { background: #dc2626; }
+    .toast span:last-child { min-width: 0; white-space: pre-wrap; word-break: break-word; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <img class="logo" src="icons/icon32.png" alt="">
+    <span class="title" data-i18n="pdfTitle">PDF 文档翻译</span>
+    <span class="settings-hint" id="settingsHint"></span>
+  </header>
+
+  <main>
+    <section class="input-card" id="inputCard">
+      <div class="dropzone" id="dropZone" role="button" tabindex="0">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>
+        <span data-i18n="pdfDrop">拖入 PDF 文件，或点击选择</span>
+      </div>
+      <input type="file" id="fileInput" accept="application/pdf,.pdf" hidden>
+      <div class="or"><span data-i18n="pdfOr">或</span></div>
+      <div class="url-row">
+        <input type="url" id="urlInput" placeholder="粘贴 PDF 链接（https://…）" data-i18n-placeholder="pdfUrlPlaceholder" autocomplete="off">
+        <button type="button" class="primary-sm" id="loadUrlBtn" data-i18n="pdfLoad">加载链接</button>
+      </div>
+      <p class="hint" data-i18n="pdfUsesSettings">沿用扩展弹窗中的 API、目标语言与风格设置</p>
+    </section>
+
+    <section class="statusbar" id="statusBar" hidden>
+      <span class="spinner" id="statusSpinner"></span>
+      <span class="dot" id="statusDot" hidden></span>
+      <span id="statusText"></span>
+    </section>
+
+    <section class="toolbar" id="toolbar" hidden>
+      <div class="seg" role="group">
+        <button type="button" class="seg-btn active" id="viewBoth" data-i18n="pdfViewBoth">双语对照</button>
+        <button type="button" class="seg-btn" id="viewTrans" data-i18n="pdfViewTrans">仅译文</button>
+      </div>
+      <div class="toolbar-actions">
+        <button type="button" class="ghost" id="retranslateBtn" data-i18n="pdfRetranslate">重新翻译</button>
+        <button type="button" class="ghost" id="newFileBtn" data-i18n="pdfNewFile">换一个文件</button>
+      </div>
+    </section>
+
+    <article id="doc"></article>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden>
+    <span class="dot" id="toastDot"></span><span id="toastText"></span>
+  </div>
+
+  <script src="i18n.js"></script>
+  <script type="module" src="pdf.js"></script>
+</body>
+</html>
