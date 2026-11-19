@@ -16,8 +16,9 @@ let loadedName = '';
 let pdfDoc = null;      // 文档保持存活，供「原页对照」懒渲染整页原图
 let docGen = 0;         // 文档世代令牌：换文件后丢弃跨世代的渲染结果
 let pageObserver = null;
-const renderQueue = [];
+const renderQueue = [];        // { kind: 'page' | 'formula', n }
 const renderedPages = new Set();
+const renderedFormulaPages = new Set();
 let rendering = false;
 
 function tt(key, params) {
@@ -97,6 +98,41 @@ async function sendToBackground(message, retries = 2) {
 
 // ===== 文本层提取：items → 行 → 段落块 =====
 
+// 数学字体识别：强信号（数学专用）与弱信号（CMR 老论文正文也用，不能单独定公式）
+const MATH_FONT_STRONG = /CMMI|CMSY|CMEX|MSAM|MSBM|MT ?Extra|Euclid|MathematicalPi|MathItalic|MathSym|MathExt|STIX|Cambria ?Math|Asana|Latin ?Modern ?Math|TeX ?Gyre.*Math/i;
+const MATH_FONT_WEAK = /\bCMR\d|\bCMBSY|\bCMSS\d|\bCMTT\d/i;
+// 数学符号（含 Greek/上下标/撇号）：无数学字体时的兜底判据，也用于页面级预筛。
+// 只收数学专用符号，排除货币、罗马数字、普通箭头等正文也会出现的字符
+const MATH_SYMBOLS = /[∑∏∐∫∬∭∮∯∰∱∲∳√∛∜∂∃∄∅∆∇∈∉∊∋∌∍∎−∓∔∕∖∗∘∙±×÷∝∞∟∠∡∢∣∤∥∦∧∨∩∪∴∵∶∷∸∹∺∻∼∽∾∿≀≁≂≃≄≅≆≇≈≉≊≋≌≍≎≏≐≑≒≓≔≕≖≗≘≙≚≛≜≝≞≟≠≡≢≣≤≥≦≧≨≩≪≫≬≭≮≯≰≱≲≳≴≵≶≷≸≹≺≻≼≽≾≿⊀⊁⊂⊃⊄⊅⊆⊇⊈⊉⊊⊋⊌⊍⊎⊏⊐⊑⊒⊓⊔⊕⊖⊗⊘⊙⊚⊛⊜⊝⊞⊟⊠⊡⊢⊣⊤⊥⊦⊧⊨⊩⊪⊫⊬⊭⊮⊯⊰⊱⊲⊳⊴⊵⊶⊷⊸⊹⊺⊻⊼⊽⊾⊿⋀⋁⋂⋃⋄⋅⋆⋇⋈⋉⋊⋋⋌⋍⋎⋏⋐⋑⋒⋓⋔⋕⋖⋗⋘⋙⋚⋛⋜⋝⋞⋟⋠⋡⋢⋣⋤⋥⋦⋧⋨⋩⋪⋫⋬⋭⋮⋯⋰⋱⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿∀∁ℏℓ℘ℜℑℵℶℷℸ′″‴⁗⁰ⁱ⁲⁳⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿ₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₒₓₔₕₖₗₘₙₚₛₜαβγδεζηθικλμνξοπρςστυφχψωϑϒϕϖϰϱϲϳϴϵ϶ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩϏ]/;
+
+// 页面级预筛：有数学符号或明显上下标（小字号 item）才值得解析字体，纯 prose 页跳过
+function pageHasMathSignal(items) {
+  const its = items.filter(it => it.str && it.str.trim());
+  if (its.length === 0) return false;
+  let small = 0;
+  const heights = its.map(it => it.height || 10).sort((a, b) => a - b);
+  const medianH = heights[Math.floor(heights.length / 2)] || 10;
+  for (const it of its) {
+    if (MATH_SYMBOLS.test(it.str)) return true;
+    if ((it.height || 10) < medianH * 0.7) small++;
+  }
+  return small >= 3;
+}
+
+// 解析 items 内部字体别名 → 真实字体名（commonObjs 里的 Font 对象由 getOperatorList 填充）
+function resolveFontNames(page, items) {
+  const map = {};
+  for (const it of items) {
+    if (!it.fontName || map[it.fontName] !== undefined) continue;
+    map[it.fontName] = '';
+    try {
+      const font = page.commonObjs.get(it.fontName);
+      if (font && font.name) map[it.fontName] = font.name;
+    } catch { /* 字体对象未就绪：退化为符号判据 */ }
+  }
+  return map;
+}
+
 // 同一行的 items 按 x 排序拼接；间隙超过阈值补空格（PDF 常把词拆成多个 item）
 function joinLine(items) {
   items.sort((a, b) => a.transform[4] - b.transform[4]);
@@ -115,7 +151,21 @@ function joinLine(items) {
   return text.trim();
 }
 
-function extractBlocks(items, page) {
+// ASCII 运算符：只计入公式符号占比，不参与页面预筛（正文连字符太常见）
+const MATH_OPS = /[=+\-<>]/;
+
+// 公式块判定：字体判据优先——强数学字体占比 ≥0.15 且数学字体总占比 ≥0.75。
+// 阈值按真实论文校准：独立公式 total≈0.89~0.94（\mathrm 函数名拉低 strong 至 0.25~0.33），
+// 含大量行内公式的正文段 total 仅≈0.36，两类清晰分离。
+// 无数学字体时用符号兜底（数学符号占比 ≥0.25 且有行内上下标结构或大运算符/根号）。
+function isFormulaStats(s) {
+  if (s.total === 0) return false;
+  if (s.strong > 0 && s.strong / s.total >= 0.15 && (s.strong + s.weak) / s.total >= 0.75) return true;
+  if (s.symbols / s.total >= 0.25 && (s.multiLevel >= 1 || /[∑∏∫√]/.test(s.text))) return true;
+  return false;
+}
+
+function extractBlocks(items, page, fontMap = {}) {
   const its = items.filter(it => it.str && it.str.trim());
   if (its.length === 0) return [];
 
@@ -145,14 +195,47 @@ function extractBlocks(items, page) {
   const out = [];
   let cur = '';
   let prevY = null;
+  // 段落级数学统计与包围盒（公式块裁剪用）
+  let st = null;
+  const newStats = () => ({ total: 0, strong: 0, weak: 0, symbols: 0, multiLevel: 0, text: '', minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+  const addLineStats = (line) => {
+    // 行内出现多个基线（上下标/分式碎片）才算结构信号；整段多行不算（Greek 正文也是多行）
+    const ys = new Set(line.items.map(it => Math.round(it.transform[5])));
+    if (ys.size >= 2) st.multiLevel++;
+    for (const it of line.items) {
+      const n = it.str.replace(/\s/g, '').length;
+      if (!n) continue;
+      const name = fontMap[it.fontName] || '';
+      st.total += n;
+      if (MATH_FONT_STRONG.test(name)) st.strong += n;
+      else if (MATH_FONT_WEAK.test(name)) st.weak += n;
+      for (const ch of it.str) if (MATH_SYMBOLS.test(ch) || MATH_OPS.test(ch)) st.symbols++;
+      const x = it.transform[4], y = it.transform[5];
+      const h = it.height || 10;
+      st.minX = Math.min(st.minX, x);
+      st.maxX = Math.max(st.maxX, x + (it.width || 0));
+      st.minY = Math.min(st.minY, y - h * 0.35);
+      st.maxY = Math.max(st.maxY, y + h * 1.1);
+    }
+    st.text += (st.text ? ' ' : '') + line.text;
+  };
   const flush = () => {
     const text = cur.trim();
     // 过滤纯数字/符号（页码、分隔线等），口径同 content.js
-    if (text && !/^[\d\s\p{P}]+$/u.test(text)) out.push({ page, text });
+    if (text && !/^[\d\s\p{P}]+$/u.test(text)) {
+      if (isFormulaStats(st)) {
+        out.push({ page, text, formula: true, bbox: { minX: st.minX, minY: st.minY, maxX: st.maxX, maxY: st.maxY } });
+      } else {
+        out.push({ page, text });
+      }
+    }
     cur = '';
+    st = null;
   };
   for (const line of usable) {
     if (prevY !== null && (prevY - line.y > medianH * 1.6 || cur.length > 1500)) flush();
+    if (!st) st = newStats();
+    addLineStats(line);
     cur += (cur ? ' ' : '') + line.text;
     prevY = line.y;
   }
@@ -209,6 +292,25 @@ function renderDoc() {
     }
     const wrap = document.createElement('div');
     wrap.className = 'block';
+    wrap.dataset.page = pageNum;
+    if (block.formula) {
+      // 公式块：原页裁剪图（懒渲染）+ 说明标签，不送翻译，天然完成态
+      wrap.classList.add('formula');
+      const img = document.createElement('div');
+      img.className = 'formula-img';
+      const spin = document.createElement('span');
+      spin.className = 'spinner';
+      img.appendChild(spin);
+      const note = document.createElement('p');
+      note.className = 'trans formula-note';
+      note.textContent = tt('pdfFormula');
+      wrap.append(img, note);
+      pageEl.querySelector('.blocks').appendChild(wrap);
+      block.imgEl = img;
+      block.transEl = note;
+      block.done = true;
+      continue;
+    }
     const orig = document.createElement('p');
     orig.className = 'orig';
     orig.textContent = block.text;
@@ -297,6 +399,7 @@ function resetToInput() {
   docGen++;
   renderQueue.length = 0;
   renderedPages.clear();
+  renderedFormulaPages.clear();
   if (pageObserver) pageObserver.disconnect();
   if (pdfDoc) { pdfDoc.destroy(); pdfDoc = null; }
   blocks = [];
@@ -337,7 +440,16 @@ async function loadDocument(source, name) {
       setStatus(tt('pdfParsing', { page: p, total }), { progress: p / total });
       const page = await pdf.getPage(p);
       const content = await page.getTextContent();
-      const pageBlocks = extractBlocks(content.items, p);
+      // 公式检测需要真实字体名：getTextContent 不填充 commonObjs 字体对象，
+      // 有数学信号的页面才跑一次 getOperatorList（纯 prose 页不增加开销）
+      let fontMap = {};
+      if (pageHasMathSignal(content.items)) {
+        try {
+          await page.getOperatorList();
+          fontMap = resolveFontNames(page, content.items);
+        } catch { /* 解析失败退化为符号判据 */ }
+      }
+      const pageBlocks = extractBlocks(content.items, p, fontMap);
       for (const b of pageBlocks) charCount += b.text.length;
       blocks.push(...pageBlocks);
       page.cleanup();
@@ -359,6 +471,7 @@ async function loadDocument(source, name) {
 
     renderDoc();
     document.getElementById('toolbar').hidden = false;
+    observeForView(); // 默认双语视图也要观察公式块（裁剪图懒渲染）
     await translateAll();
   } catch (err) {
     showToast(tt('pdfParseFailed', { error: (err && err.message) || String(err) }), true);
@@ -462,39 +575,46 @@ function setView(id) {
   for (const key of Object.keys(VIEW_MODES)) {
     document.getElementById(key).classList.toggle('active', key === id);
   }
-  if (id === 'viewPage') observePages();
-  else if (pageObserver) pageObserver.disconnect();
+  observeForView();
 }
 
 document.getElementById('viewBoth').addEventListener('click', () => setView('viewBoth'));
 document.getElementById('viewTrans').addEventListener('click', () => setView('viewTrans'));
 document.getElementById('viewPage').addEventListener('click', () => setView('viewPage'));
 
-// ===== 原页对照：整页原图懒渲染 =====
-// 进入视图且页面接近视口才渲染，串行队列避免 CPU/内存尖峰；canvas 缓存后切回即时
+// ===== 懒渲染：原页对照整页原图 / 双语与仅译文的公式裁剪图 =====
+// 接近视口才渲染，串行队列避免 CPU/内存尖峰；canvas 缓存后切回即时
 
-function observePages() {
+function observeForView() {
   if (!pageObserver) {
     pageObserver = new IntersectionObserver(entries => {
       for (const entry of entries) {
-        if (entry.isIntersecting) queuePageRender(Number(entry.target.dataset.page));
+        if (!entry.isIntersecting) continue;
+        const n = Number(entry.target.dataset.page);
+        queueRender(entry.target.classList.contains('formula') ? 'formula' : 'page', n);
       }
     }, { rootMargin: '300px 0px' });
   }
   pageObserver.disconnect();
-  for (const el of document.querySelectorAll('.page')) pageObserver.observe(el);
+  // 原页对照观察整页；其余视图只需公式块（整页原图不渲染）
+  const sel = document.body.classList.contains('page-view') ? '.page' : '.block.formula';
+  for (const el of document.querySelectorAll(sel)) pageObserver.observe(el);
 }
 
-function queuePageRender(n) {
-  if (!pdfDoc || renderedPages.has(n) || renderQueue.includes(n)) return;
-  renderQueue.push(n);
+function queueRender(kind, n) {
+  if (!pdfDoc) return;
+  const done = kind === 'page' ? renderedPages : renderedFormulaPages;
+  if (done.has(n) || renderQueue.some(j => j.kind === kind && j.n === n)) return;
+  renderQueue.push({ kind, n });
   if (!rendering) drainRenderQueue();
 }
 
 async function drainRenderQueue() {
   rendering = true;
   while (renderQueue.length > 0) {
-    await renderPageImage(renderQueue.shift(), docGen);
+    const job = renderQueue.shift();
+    if (job.kind === 'page') await renderPageImage(job.n, docGen);
+    else await renderFormulaCrops(job.n, docGen);
   }
   rendering = false;
 }
@@ -525,21 +645,70 @@ async function renderPageImage(n, gen) {
   }
 }
 
+// 公式裁剪：整页渲染一次，按 bbox 裁出该页每个公式块，丢弃整页 canvas 只留小图。
+// 渲染失败降级为提取文本（与公式检测前行为一致，不空白）
+async function renderFormulaCrops(n, gen) {
+  const targets = blocks.filter(b => b.formula && b.page === n && b.imgEl);
+  if (targets.length === 0 || !pdfDoc) return;
+  const showText = (b) => {
+    b.imgEl.textContent = '';
+    const p = document.createElement('p');
+    p.className = 'formula-fallback';
+    p.textContent = b.text;
+    b.imgEl.appendChild(p);
+  };
+  try {
+    const page = await pdfDoc.getPage(n);
+    const base = page.getViewport({ scale: 1 });
+    const scale = Math.min(2.5, 1100 / base.width);
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    page.cleanup();
+    if (gen !== docGen) return; // 已换文件，丢弃过期结果
+    const pad = 4; // PDF 点：公式四周留白
+    for (const b of targets) {
+      const { minX, minY, maxX, maxY } = b.bbox;
+      const sx = Math.max(0, (minX - pad) * scale);
+      const sy = Math.max(0, viewport.height - (maxY + pad) * scale);
+      const sw = Math.min(canvas.width - sx, (maxX - minX + pad * 2) * scale);
+      const sh = Math.min(canvas.height - sy, (maxY - minY + pad * 2) * scale);
+      if (sw <= 0 || sh <= 0) { showText(b); continue; }
+      const crop = document.createElement('canvas');
+      crop.width = Math.ceil(sw);
+      crop.height = Math.ceil(sh);
+      crop.getContext('2d').drawImage(canvas, sx, sy, sw, sh, 0, 0, crop.width, crop.height);
+      b.imgEl.textContent = '';
+      b.imgEl.appendChild(crop);
+    }
+    renderedFormulaPages.add(n);
+  } catch (err) {
+    if (gen !== docGen) return;
+    for (const b of targets) showText(b);
+  }
+}
+
 document.getElementById('retranslateBtn').addEventListener('click', async () => {
   if (translating || blocks.length === 0) return;
   settings = await chrome.storage.local.get(SETTINGS_KEYS);
   uiLang = settings.targetLang || '简体中文';
   applyI18n();
   for (const block of blocks) {
+    if (block.formula) continue; // 公式块是原样裁剪图，无需重译
     block.done = false;
     block.transEl.textContent = '…';
     block.transEl.classList.add('pending');
   }
-  // 页码文案也随界面语言刷新
+  // 页码与公式标签文案也随界面语言刷新
   let pageNum = 0;
   for (const head of document.querySelectorAll('.page-head')) {
     pageNum++;
     head.textContent = tt('pdfPage', { n: pageNum });
+  }
+  for (const note of document.querySelectorAll('.formula-note')) {
+    note.textContent = tt('pdfFormula');
   }
   await translateAll();
 });
